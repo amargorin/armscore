@@ -233,7 +233,7 @@ class Members(models.Model):
             img.save(self.photo.path)
 
 class MatchHistory(models.Model):
-    match = models.ForeignKey(Match, on_delete=models.CASCADE)
-    category = models.ForeignKey(MemberCats, on_delete=models.CASCADE, default=0)  # категория MembersCats.id
+    match = models.IntegerField(default=0)
+    category = models.IntegerField(default=0)  # категория MembersCats.id
     win_id = models.IntegerField(default=0)  # Имя участника
     los_id = models.IntegerField(default=0)  # Имя участника

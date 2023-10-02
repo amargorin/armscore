@@ -939,6 +939,7 @@ def match(request):
         if action == 'delete_match':  # удаление турнира
             if match_id:
                 Match.objects.filter(id=match_id).delete()
+                MatchHistory.objects.filter(match=match_id).delete()
             return redirect('/')
 
         if action == 'add_category':  # добавление категории
@@ -957,6 +958,7 @@ def match(request):
             category_id = request.POST.get('category_id')
             MemberCats.objects.filter(pk=category_id).delete()
             data['start_list'] = get_list(match_id, request)
+            MatchHistory.objects.filter(category=category_id).delete()
 
         if action == 'add_member':
             form = MembersForm()
