@@ -211,8 +211,6 @@ class Members(models.Model):
     weight = models.FloatField(default=0)  # собственный вес
     far_passport = models.CharField(max_length=30, default='')  # номер паспорта ФАР
     team = models.CharField(max_length=255, default='')  # Название команды
-    # place_left = models.IntegerField(blank=True, default=0)  # Занятое место левая рука
-    # place_right = models.IntegerField(blank=True, default=0)  # Занятое место правая рука
     rank = models.CharField(max_length=10, default='')  # спортивное звание.
     birthday = models.DateField(null=True)  # Дата рождения
     trener = models.CharField(max_length=255, default='')  # Тренер
@@ -235,7 +233,7 @@ class Members(models.Model):
             img.save(self.photo.path)
 
 class MatchHistory(models.Model):
-    match = models.IntegerField(default=0)
-    category = models.IntegerField(default=0)  # категория MembersCats.id
+    match = models.ForeignKey(Match, on_delete=models.CASCADE)
+    category = models.ForeignKey(MemberCats, on_delete=models.CASCADE, default=0)  # категория MembersCats.id
     win_id = models.IntegerField(default=0)  # Имя участника
     los_id = models.IntegerField(default=0)  # Имя участника
