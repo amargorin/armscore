@@ -1,0 +1,115 @@
+
+.container .popover {
+  margin: 0 auto;
+}
+
+.popover {
+  position: relative;
+  width: 500px;
+  padding: 5px;
+  background: #606060;
+  border: 1px solid black;
+  border-radius: 11px;
+  background-image: -webkit-linear-gradient(top, #606060, #4a4a4a);
+  background-image: -moz-linear-gradient(top, #606060, #4a4a4a);
+  background-image: -o-linear-gradient(top, #606060, #4a4a4a);
+  background-image: linear-gradient(to bottom, #606060, #4a4a4a);
+  -webkit-box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.2), inset 1px 0 rgba(255, 255, 255, 0.08), inset -1px 0 rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.2), inset 1px 0 rgba(255, 255, 255, 0.08), inset -1px 0 rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.popover:before, .popover:after, .popover ul:before {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 22px;
+  width: 0;
+  height: 0;
+  border: 7px outset transparent;
+}
+.popover:before {
+  top: -14px;
+  border-bottom: 7px solid black;
+}
+.popover:after {
+  top: -13px;
+  border-bottom: 7px solid #888;
+}
+.popover ul:before {
+  z-index: 2;
+  top: -12px;
+  border-bottom: 8px solid #666;
+}
+.popover ul {
+  overflow: hidden;
+  background: #515b67;
+  border: 1px solid black;
+  border-radius: 7px;
+  -webkit-box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(255, 255, 255, 0.1), 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(255, 255, 255, 0.1), 0 1px rgba(255, 255, 255, 0.1);
+}
+.popover li {
+  display: block;
+}
+.popover li + li {
+  border-top: 1px solid #eee;
+}
+.popover li:first-child a {
+  border-radius: 7px 7px 0 0;
+}
+.popover li:last-child a {
+  border-radius: 0 0 7px 7px;
+}
+.popover a {
+  display: block;
+  position: relative;
+  line-height: 44px;
+  padding: 0 15px 0 48px;
+  font-size: 16px;
+  font-weight: bold;
+  color: black;
+  text-decoration: none;
+}
+.popover a:hover {
+  background: white;
+  -webkit-box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+.popover a:before, .popover a:after {
+  content: '';
+  display: block;
+  position: absolute;
+}
+.popover a:before, .popover .active a:active:before {
+  top: 12px;
+  left: 14px;
+  height: 20px;
+  width: 20px;
+  background: #f7f7f7;
+  border: 0;
+  border-radius: 11px;
+  -webkit-box-shadow: inset 0 1px 1px 1px rgba(0, 0, 0, 0.2), inset 0 5px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 1px 1px rgba(0, 0, 0, 0.2), inset 0 5px 5px rgba(0, 0, 0, 0.1);
+}
+.popover a:after, .popover .active a:active:after {
+  display: none;
+  top: 18px;
+  left: 19px;
+  width: 11px;
+  height: 9px;
+  background: url("../images/tick.png") center center no-repeat;
+}
+.popover .active a:before, .popover a:active:before {
+  top: 11px;
+  left: 13px;
+  background: #555;
+  border: 1px solid #111;
+  background-image: -webkit-linear-gradient(top, #777777, #404040);
+  background-image: -moz-linear-gradient(top, #777777, #404040);
+  background-image: -o-linear-gradient(top, #777777, #404040);
+  background-image: linear-gradient(to bottom, #777777, #404040);
+  -webkit-box-shadow: inset 0 1px rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.popover .active a:after, .popover a:active:after {
+  display: block;
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="e724a638-5d3f-4c3b-a7ad-ca6d03eabb50" name="TestServer" url="http://localhost">
+        <fileTransfer mountedRoot="C:\Users\ctspi\YandexDisk\Projects\ARM" accessType="MOUNT" port="0" />
+      </webServer>
+    </option>
+  </component>
+</project>

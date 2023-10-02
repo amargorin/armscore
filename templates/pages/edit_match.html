@@ -1,0 +1,51 @@
+{% extends 'pages/base.html' %} &nbsp;
+{% load static %}
+{% block head %}
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <link rel="stylesheet" href="{% static "css/datepicker.css" %}">
+    <link rel="stylesheet" href="{% static "css/cart.css" %}">
+    <link rel="stylesheet" href="{% static "css/about.css" %}">
+    <title>Система проведения турниров</title>
+
+
+{% endblock head %}
+{% block content %}
+<div class="container">
+    <div class="logo">
+        <div class="logo-pic">
+            <img src="{% static "images/logo.png" %}"  class="img-circle logo-img">
+        </div> {# logo-pic #}
+    </div>
+    <div class="header-top">
+        {{ header|safe }}
+    </div><!--header-top-->
+    <div class="menu-bar">
+        {{ menu|safe }}
+    </div> <!--menu-bar-->
+    <div class="match_info">
+        {% if edit_form %}
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="selector" value="update_match" />
+                <input type="hidden" name="match_id" value="{{ match_id }}" />
+                    <ul class="content">
+                    {% for item in edit_form %}
+                        <li>
+                            {% if item.id_for_label == 'id_poster' %}
+                                <label class="check-label" for="{{item.id_for_label}}">{{item.label}}: {{ item.initial }} </label>
+                            {%  else %}
+                                <label class="check-label" for="{{item.id_for_label}}">{{item.label}}: </label>
+                            {% endif %}
+                            {{ item }}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                <input type="submit" id="go_to_match" value="Сохранить">
+            </form>
+        {% endif %}
+    </div>
+</div> <!--./container-->
+{% endblock content %}
+{% block javascript %}
+
+{% endblock javascript %}

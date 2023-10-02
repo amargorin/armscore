@@ -1,0 +1,46 @@
+{% extends 'pages/base.html' %} &nbsp;
+{% load static %}
+{% block head %}
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <!-- Meta, title, CSS, favicons, etc. -->
+{#    <meta name="viewport" content="width=device-width, initial-scale=1">#}
+
+    <title>Личный кабинет</title>
+
+{#    <link href="{% static "css/bootstrap.min.css" %}" rel="stylesheet">#}
+
+{% endblock head %}
+{% block content %}
+
+{% if request.user.is_authenticated %}
+    <div class="container">
+        <div class="logo">
+            <div class="logo-pic">
+                <img src="{% static "images/logo.png" %}"  class="img-circle logo-img">
+            </div> {# logo-pic #}
+        </div>
+        <div class="header-top">
+            {{ header|safe }}
+        </div><!--header-top-->
+        <div class="menu-bar">
+            {{ menu|safe }}
+        </div> <!--menu-bar-->
+        <div class="content">
+            <div class="content-current">
+                <div class="cart"> <!-- Список турниров -->
+                    <div class="cart-top">
+                      <h2 class="cart-top-title">{{ page_name }}</h2>
+    {#                  <div class="cart-top-info">найдено 1 турнир</div>#}
+                    </div>
+                    <ul>
+                        {{ matches|safe }}
+                    </ul>
+                </div> <!-- Список турниров -->
+            </div>
+        </div>
+    </div>
+{% else %}
+
+{% endif %}
+{% endblock content %}
+

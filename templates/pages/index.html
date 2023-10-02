@@ -1,0 +1,53 @@
+{% extends 'pages/base.html' %} &nbsp;
+{% load static %}
+{% block head %}
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+    <title>Система проведения турниров</title>
+
+
+{% endblock head %}
+{% block content %}
+<div class="container">
+    <div class="logo">
+        <div class="logo-pic">
+            <img src="{% static "images/logo.png" %}"  class="img-circle logo-img">
+        </div> {# logo-pic #}
+    </div>
+    <div class="header-top">
+        {{ header|safe }}
+    </div><!--header-top-->
+    <div class="menu-bar">
+        {{ menu|safe }}
+    </div> <!--menu-bar-->
+    <div class="sidebar">
+        {{ calendar|safe }}
+    </div> <!--sidebar-->
+    <div class="content">
+        <div class="content-current">
+            <div class="cart"> <!-- Поиск турниров -->
+                <div class="cart-top">
+                  <h2 class="cart-top-title">{{ month_name }}</h2>
+                </div>
+                <ul>
+                    {{ matches|safe }}
+                </ul>
+            </div> <!-- Текущие турниры -->
+        </div>
+        <div class="content-annoncements">
+            <div class="cart"> <!-- Анонсы -->
+                <div class="cart-top">
+                  <h2 class="cart-top-title">Анонс соревнований</h2>
+                </div>
+                <ul>
+                  {{ annonce|safe }}
+                </ul>
+            </div> <!-- Анонсы -->
+        </div>
+    </div><!--content-->
+
+</div> <!--./container-->
+{% endblock content %}
+{% block javascript %}
+
+{% endblock javascript %}

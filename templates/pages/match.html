@@ -1,0 +1,141 @@
+{% extends 'pages/base.html' %} &nbsp;
+{% load static %}
+{% block head %}
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <!-- Meta, title, CSS, favicons, etc. -->
+{#    <meta name="viewport" content="width=device-width, initial-scale=1">#}
+
+    <title>Личный кабинет</title>
+
+{#    <link href="{% static "css/bootstrap.min.css" %}" rel="stylesheet">#}
+
+{% endblock head %}
+{% block content %}
+    <div class="container">
+        <div class="logo">
+            <div class="logo-pic">
+                <img src="{% static "images/logo.png" %}"  class="img-circle logo-img">
+            </div> {# logo-pic #}
+        </div>
+        <div class="header-top">
+            {{ header|safe }}
+        </div><!--header-top-->
+        <div class="menu-bar">
+            {{ menu|safe }}
+        </div> <!--menu-bar-->
+        <!-- page content -->
+        {% if score_form %}
+        <div class="content">
+            <form method="post">
+            {% csrf_token %}
+                <input type="hidden" name="selector" value="set_match" />
+                <ul class="content">
+                {% for item in score_form %}
+                    <li>
+                        <label class="check-label" for="{{item.id_for_label}}">{{item.label}}: </label>
+                        {{ item }}
+                    </li>
+                {% endfor %}
+                </ul>
+                <input type="submit" value="Сохранить турнир" />
+            </form>
+        {% else %}
+            <div class="match_content"> {# отображаем заголовок турнира #}
+                <div class="about">
+                    <p class="about-author">
+                        <h2 class="about-match">Турнир: {{ title }}</h2>
+                        <h2 class="about-match">Дата проведения: {{ date }}</h2>
+                    </p>
+                </div>
+            </div>  {# match_content #}
+            <div class="menu-bar">
+                {{ menu_cat|safe }}
+            </div> <!--menu-bar-->
+            {%  if category_form %}
+            <div class="category">  {# add category #}
+                <form method="post">
+                    {% csrf_token %}
+                    {% for item in category_form %}
+                        <div class="select">
+                            <label class="category-label" for="{{item.id_for_label}}">{{item.label}}: </label>
+                            {{ item }}
+                        </div>
+                    {% endfor %}
+                    <input type="hidden" name="selector" value="set_category" />
+                    <input type="hidden" name="match_id" value={{ match_id }} />
+                    <input type="submit" id="go_to_match" value="Применить" />
+                </form>
+                {% endif %}
+                <!-- тут была member form -->
+                <div class="inline-group">
+                    {# секция категории #}
+                    {{ start_list|safe }}
+                </div>
+                {# секция участники #}
+                {#  секция изменения категории участника#}
+                {% if member_item %}
+                <div class="add_members">
+                    <table class="tab_group">
+                        <th Участник</th>
+                        <tr class="row_cat">
+                            <td class="coll_field">{{ member_item.surname }} {{ member_item.name }} {{ member_item.second_name }}</td>
+                        </tr>
+                    </table>
+                    <table class="tab_group">
+                        <th colspan=3>Категории</th>
+                        <th colspan="3"></th>
+                            {% for item in new_categories %}
+                                <tr class="row_cat">
+                                    <td class="coll_field">{{ item.group_category }}</td>
+                                    <td class="coll_field">{{ item.age_category }}</td>
+                                    <td class="coll_field">{{ item.weight_category }}</td>
+                                    <td class="coll_field">{{ item.hands }}</td>
+                                    <td class="coll_button">
+                                        <form method="post">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="selector" value="new_category" />
+                                            <input type="hidden" name="category_id" value={{ item.id }} />
+                                            <input type="hidden" name="match_id" value={{ match_id }} />
+                                            <input type="hidden" name="member_id" value={{ member.id }} />
+                                            <input type="submit" id="row_cat"  value="Назначить категорию" />
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        {% endif %}
+        </div> {# content #}
+        <!-- /page content -->
+    </div> {# container #}
+{% endblock content %}
+{% block javascript %}
+  <script>
+      $(document).ready(function () {
+          // отслеживаем событие отправки формы
+          $("button").click(function () {
+              // создаем AJAX-вызов
+              {#var clickId = $(this).attr('id');#}
+              var clickId = "#"+this.id;
+              $.ajax({
+                  type: "POST",
+                  data: $(clickId).serialize(), // получаяем данные формы
+                  {#data:{winner_id: this.id},#}
+                  url: "{% url 'set_winner' %}",
+                  // если успешно, то
+                  success: function (response) {
+                      location.reload();
+                  },
+                  // если ошибка, то
+                  error: function (response) {
+                      // предупредим об ошибке
+                      console.log(response.responseJSON.errors)
+                  }
+              });
+              return false;
+          });
+      })
+  </script>
+{% endblock javascript %}

@@ -1,0 +1,87 @@
+{% extends 'pages/base.html' %} &nbsp;
+{% load static %}
+{% block head %}
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <link rel="stylesheet" href="{% static "css/datepicker.css" %}">
+    <link rel="stylesheet" href="{% static "css/cart.css" %}">
+    <link rel="stylesheet" href="{% static "css/about.css" %}">
+    <link rel="stylesheet" href="{% static "css/popover.css" %}">
+    <title>Добавить пользователя</title>
+
+{% endblock head %}
+{% block content %}
+<div class="container">
+    <div class="logo">
+        <div class="logo-pic">
+            <img src="{% static "images/logo.png" %}"  class="img-circle logo-img">
+        </div> {# logo-pic #}
+    </div>
+    <div class="header-top">
+        {{ header|safe }}
+    </div><!--header-top-->
+    <div class="menu-bar">
+        {{ menu|safe }}
+    </div> <!--menu-bar-->
+    <div class="match_info">
+
+    </div>
+    <div class="match_content"> {# отображаем заголовок турнира #}
+        <div class="about">
+            <p class="about-author">
+                <h2 class="about-match">Турнир: {{ title }}</h2>
+                <h2 class="about-match">Дата проведения: {{ date }}</h2>
+            </p>
+        </div>
+    </div>  {# match_content #}
+    <div class="menu-bar">
+        {{ menu_cat|safe }}
+    </div> <!--menu-bar-->
+    {%  if members_form %}
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {% for item in members_form %}
+                <div class="list">
+                    <label class="category-label" for="{{item.id_for_label}}">{{item.label}}: </label>
+                    {{ item }}
+                </div>
+            {% endfor %}
+            <input type="hidden" name="selector" value="set_member" />
+            <input type="hidden" name="category_id" value={{ category_id }} />
+            <input type="hidden" name="match_id" value={{ match_id }} />
+            <input type="submit" id="go_to_match" value="Применить" />
+        </form>
+    {% endif %}
+</div> <!--./container-->
+{% endblock content %}
+{% block javascript %}
+  <script>
+      $(document).ready(function () {
+          // отслеживаем событие отправки формы
+          $('#id_surname').keyup(function () {
+              $('#popover').remove();
+              // создаем AJAX-вызов
+              $.ajax({
+                  {#data: $(this).serialize(), // получаяем данные формы#}
+                  data: $("form").serialize(), // получаяем данные формы
+                  type: "POST",
+                  url: "{% url 'check_username' %}",
+                  // если успешно, то
+                  success: function (response) {
+                      if (response.is_taken == true) {
+                          $('#id_surname').after(response.members)
+                      }
+                      else {
+                          $('#popover').remove();
+                      }
+                  },
+                  // если ошибка, то
+                  error: function (response) {
+                      // предупредим об ошибке
+                      console.log(response.responseJSON.errors)
+                  }
+              });
+              return false;
+          });
+      })
+  </script>
+{% endblock javascript %}
