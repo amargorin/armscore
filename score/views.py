@@ -658,7 +658,15 @@ def get_weight_list(user_id, match_id, token):
                 s.append('\t\t\t<td class="coll_field"></td>')
             s.append('\t\t\t<th class="coll_field">{}</th>'.format(member.fo))
             if member.weight:
-                s.append('\t\t\t<th colspan="2" class="coll_field">{}</th>'.format(member.weight))
+                #     s.append('\t\t\t<th colspan="2" class="coll_field">{}</th>'.format(member.weight))
+                s.append('\t\t\t<td class="coll_field">'
+                         '<form id="weight_id_{1}">'
+                         '<input type="number" name="weight" placeholder="{2}" step="0.01" min="0">'
+                         '<input type="hidden" name="match_id" value="{0}">'
+                         '<input type="hidden" name="member_id" value="{1}">'.format(match_id, member.pk, member.weight))
+                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
+                s.append('</form>\n\t\t</td>')
+                s.append('<td><button id="{}" class="button">Сохранить</button></td>'.format(member.pk))
             else:
                 s.append('\t\t\t<td class="coll_field">'
                          '<form id="weight_id_{1}">'
