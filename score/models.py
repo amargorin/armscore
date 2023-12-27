@@ -153,7 +153,7 @@ class MemberCats(models.Model):
     hand = models.CharField(max_length=1, choices=Hand.choices, default=Hand.RIGHT)  # на какой руке категория
     table = models.IntegerField(blank=True, null=True)  # на каком столе будет проводиться данная категория
     started = models.BooleanField(default=False)  # Признак что соревнование начато и жеребьевка состоялась
-    min = models.IntegerField(blank=True, null=True)  # определения полуфинала, финала и суперфинала, результат (1,2,3,4)
+    final = models.IntegerField(blank=True, default=0)  # определения финала
 
 
 class Match(models.Model):  # Общая информация о турнире
@@ -165,9 +165,9 @@ class Match(models.Model):  # Общая информация о турнире
     gj = models.CharField(max_length=255, null=True)  # Главный судья
     gs = models.CharField(max_length=255, null=True)  # Главный секретарь
     table_count = models.IntegerField(blank=True, null=True)  # Количество столов для борьбы
-    arch = models.BooleanField(default=False)  # признак закончившегося соревнования ( 0 = текущее, 1 = архивное)
+    status = models.IntegerField(blank=True, default=0)  # 0=не начинался, 1=проходит, 2=закончился
     logo = models.ImageField(default='', null=True)  # логотип турнира
-    current = models.IntegerField(blank=True, default=0)  # На какой руке прооходить матч 2 = на левой 1 =на правой
+    current = models.IntegerField(blank=True, default=0)  # На какой руке проходит матч 2 = на левой 1 =на правой
     hands = models.CharField(max_length=1, choices=Hands.choices, default=Hands.BOTH)  # на какой руке турнир
     contacts = models.CharField(max_length=255, null=True)  # Контактная информация
     poster = models.ImageField(default='default_poster.png', upload_to='')  # Афиша соревнования
@@ -197,11 +197,11 @@ class StartLists(models.Model): # Стартовые списки
     fo = models.CharField(max_length=255, choices=FederalRegion.choices,
                           default="77 - г. Москва")  # Федеральный округ РФ
     # информация для расчета позиции участника при проведении соревнования
-    position = models.IntegerField(blank=True, null=True, default=0)  # Позиция после жеребьевки и далее в туре
-    round = models.IntegerField(blank=True, null=True, default=0)  # Текущий тур
-    loses = models.IntegerField(blank=True, null=True, default=0)  # Количество поражений
-    win = models.IntegerField(blank=True, null=True, default=0)  # Количество побед
-    pair = models.IntegerField(blank=True, null=True, default=0)  # ид пары в текущем поединке
+    position = models.IntegerField(blank=True, null=True, default=0)  # Позиция в стеке
+    step = models.IntegerField(blank=True, null=True, default=0)  # Текущий тур
+    act = models.BooleanField(default=True)  # Признак текушей позиции в стеке
+    group = models.IntegerField(blank=True, default=1)  # сетка А = 1, Сетка Б = 2
+
 
 
 class Members(models.Model):

@@ -138,4 +138,28 @@
           });
       })
   </script>
+  <script>
+      $(document).ready(function () {
+          // отслеживаем событие отправки формы
+          $("button").click(function () {
+              // создаем AJAX-вызов
+              var clickId = "#weight_id_"+this.id;
+              $.ajax({
+                  type: "POST",
+                  data: $(clickId).serialize(), // получаяем данные формы
+                  url: "{% url 'set_weight' %}",
+                  // если успешно, то
+                  success: function (response) {
+                      location.reload();
+                  },
+                  // если ошибка, то
+                  error: function (response) {
+                      // предупредим об ошибке
+                      console.log(response.responseJSON.errors)
+                  }
+              });
+              return false;
+          });
+      })
+  </script>
 {% endblock javascript %}
