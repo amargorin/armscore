@@ -1,6 +1,6 @@
 .cart {
   /*margin: 50px auto;*/
-  width: 787px;
+  /*width: 615px;*/
   overflow: hidden;
   color: white;
   padding: 4px;
@@ -14,6 +14,7 @@
 }
 
 .cart-top {
+  /*width: 600px;*/
   position: relative;
   z-index: 1;
   height: 31px;

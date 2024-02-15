@@ -29,11 +29,11 @@ class UserRegistrationForm(forms.ModelForm):
 class ScoreForm(forms.ModelForm):
     class Meta:
         model = Match
-        fields = ('title', 'location', 'fo', 'date', 'gj', 'gs', 'table_count', 'contacts', 'hands', 'poster', 'public')
+        fields = ('title', 'location', 'fo', 'date', 'gj', 'gs', 'table_count', 'contacts', 'hands', 'poster', 'c56')
         labels = {'title': 'Название турнира', 'location': 'Место проведения', 'fo': 'Федеральный округ',
                  'date':'Дата проведения', 'gj': 'Главный судья', 'gs': 'Главный секретарь',
                   'table_count': 'Количество столов', 'contacts': 'Контактная информация', 'hands': 'На руках',
-                  'poster': 'Афиша турнира', 'public': 'Показывать турнир всем'}
+                  'poster': 'Афиша турнира', 'c56': 'Командный зачет (поединок за 5,6 место)'}
         widgets = {'date': forms.widgets.DateInput(attrs={'type': 'date', 'min': 1, 'placeholder': 'yyyy-mm-dd',
                                             'class': 'form-control'}), 'poster': forms.FileInput()}
 
@@ -46,7 +46,7 @@ class ScoreForm(forms.ModelForm):
         self.fields['date'].required = False
         self.fields['contacts'].required = False
         self.fields['poster'].required = False
-        self.fields['public'].required = False
+        self.fields['c56'].required = False
 
     def save(self, *args, **kwargs):
         inst = super(ScoreForm, self).save(commit=False)

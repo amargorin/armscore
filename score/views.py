@@ -3,19 +3,60 @@ import datetime
 from PIL import Image
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
-from django.core.files.base import ContentFile
 
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import Match, MemberCats, MatchHistory, Members
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound
 from .forms import LoginForm, UserRegistrationForm, ScoreForm, CategoryForm, MembersForm, StartLists
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
-from django.db.models import Avg, Min, Max, Sum
+from django.db.models import Min, Max
 from django.http import JsonResponse
 from django.middleware import csrf
 import random
+from openpyxl import Workbook
+from openpyxl.styles import Color, Alignment, Font, PatternFill, Border, Side
+
+
+points = (
+25, 17, 9, 5, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','X','Y','Z']
+
+
+def set_table(request):
+    category_id = request.POST.get('category_id', None)
+    match_id = request.POST.get('match_id', None)
+    table_number = request.POST.get('table_number', 1)
+    user_id = request.user.id
+    owner_id = Match.objects.get(pk=match_id).owner_id
+    result = None
+    if table_number:
+        if user_id == owner_id:
+            result = MemberCats.objects.filter(pk=category_id).update(table=table_number)
+    response = {
+        'is_taken': result}
+    return JsonResponse(response)
+def rollback(request):
+    match_id = request.POST.get('match_id', None)
+    category_id = request.POST.get('category_id', None)
+    user_id = request.user.id
+    owner_id = Match.objects.get(pk=match_id).owner_id
+    result = None
+    if user_id == owner_id:
+        step = StartLists.objects.filter(category_id=category_id).aggregate(Max("step"))['step__max']
+        members = StartLists.objects.filter(category_id=category_id, step=step)
+        for member in members:
+            pre_step = StartLists.objects.filter(category_id=category_id, step__lt=step,
+                                                 member_id=member.member_id).aggregate(Max("step"))['step__max']
+            StartLists.objects.filter(category_id=category_id, member_id=member.member_id,
+                                      step=pre_step).update(act=True)
+        StartLists.objects.filter(category_id=category_id, step=step).delete()
+    response = {
+        'is_taken': result}
+    return JsonResponse(response)
 
 
 def set_weight(request):
@@ -33,112 +74,6 @@ def set_weight(request):
     return JsonResponse(response)
 
 
-# def set_winner(request):
-#     winner_id = request.POST.get('winner_id', None)
-#     category_id = request.POST.get('category_id', None)
-#     match_id = request.POST.get('match_id', None)
-#     # user_id = int(request.POST.get('user_id', None))
-#     user_id = request.user.id
-#     owner_id = Match.objects.get(pk=match_id).owner_id
-#     response = {
-#         'is_taken': winner_id}
-#     if user_id == owner_id:
-#         winner = StartLists.objects.get(category_id=category_id, member_id=winner_id)  # строка спортсмена в StartLists
-#         loser_id = winner.pair
-#         position = StartLists.objects.filter(category_id=category_id).aggregate(Max("position"))
-#         # print('winner=', winner.member_id, 'pos=', winner.position, 'looser=', loser_id)
-#         # print('max position=', position['position__max'])
-#         all_cat = len(StartLists.objects.filter(category_id=category_id))  # колич. участников в катег.
-#         try:
-#             last_member = StartLists.objects.get(category_id=category_id, pair=None, loses=winner.loses)  # спортсмен без пары в нужной сетке
-#             # print('last member без пары=', last_member.member_id, 'pos=', last_member.position)
-#             if winner.pk != last_member.pk:  # если нашли не сами себя (в случае если один участник)
-#                 StartLists.objects.filter(pk=winner.pk).update(round=winner.round + 1,
-#                                                                       win=winner.win + 1,
-#                                                                       position=last_member.position + 1,
-#                                                                       pair=last_member.member_id)
-#                 # а также добавляем ласт мемберу тоже пару.
-#                 # print('нашли пару победителю pair=', last_member.member_id)
-#                 StartLists.objects.filter(pk=last_member.pk).update(pair=winner_id)
-#         except ObjectDoesNotExist:  # если пары нет
-#             StartLists.objects.filter(pk=winner.pk).update(round=winner.round + 1, win=winner.win + 1,
-#                                                            position=position['position__max'] + 1 + (
-#                                                                    position['position__max'] % 2), pair=None)
-#             # print('Победитель', winner.member_id, 'position если нет пары=', position['position__max'] + 1 + (position['position__max'] % 2))
-#         position = StartLists.objects.filter(category_id=category_id).aggregate(Max("position"))
-#         # print('обновляем max position=', position['position__max'])
-#         # для проигравшего определяем сколько у него проражений
-#         try:
-#             # print('Обрабатываем проигравшего loser_id=', loser_id, 'category_id=', category_id)
-#             loser = StartLists.objects.get(category_id=category_id, member_id=loser_id)
-#
-#             # сохранение истории поединков для статистики побед между спортсменами
-#             MatchHistory.objects.create(match=match_id, category=category_id, win_id=winner.member_id,
-#                                         los_id=loser.member_id)
-#             if loser.loses == 0:  # если это первое поражение участник опускается в Б сетку
-#                 try:
-#                     # print('если у проигравшего нет поражений')
-#                     last_member = StartLists.objects.get(category_id=category_id, pair=None, loses=1)  # спортсмен в нашей сетке без пары
-#                     if loser.pk != last_member.pk:  # если это не мы сами
-#                         StartLists.objects.filter(pk=loser.pk).update(round=loser.round + 1,
-#                                                                       position=last_member.position + 1,
-#                                                                       pair=last_member.member_id)
-#                         StartLists.objects.filter(pk=last_member.pk).update(pair=loser_id)
-#                         # print('если нашли пару loser=', loser.member_id, 'pair=', last_member.member_id, 'pos=', last_member.position+1)
-#                 except ObjectDoesNotExist:  # если пары не найдено
-#                     # print('если пары проигравшему не найдено то его position=', position['position__max'] + 1 + (position['position__max'] % 2))
-#                     StartLists.objects.filter(pk=loser.pk).update(round=loser.round + 1,
-#                                                                   position=position['position__max'] + 1 + (
-#                                                                           position['position__max'] % 2), pair=None)
-#             else:  # вылетел из соревнований
-#                 # print('вылетел из соревнований id=', loser.member_id)
-#                 # all_cat = len(StartLists.objects.filter(category_id=category_id))  # колич. участников в катег.
-#                 place = StartLists.objects.filter(category_id=category_id).exclude(place=0).aggregate(
-#                         Min('place'))
-#                 if place['place__min']:  # Если последее место уже кто то занял
-#                     StartLists.objects.filter(pk=loser.pk).update(place=place['place__min'] - 1)
-#                 else:
-#                     StartLists.objects.filter(pk=loser.pk).update(place=all_cat)
-#             StartLists.objects.filter(pk=loser.pk).update(loses=loser.loses + 1)
-#         except ObjectDoesNotExist:  # если нажата кнопка где нет соперника
-#             print('где то была необработанная ошибка у проигравшего')
-#         # текущее количество участников в а и б сетках
-#         a_count = len(StartLists.objects.filter(category_id=category_id, loses=0))
-#         b_count = len(StartLists.objects.filter(category_id=category_id, loses=1))
-#
-#         if a_count == 1:  # если в верхней сетке остался один участник
-#             if b_count == 0:  # победитель
-#                 MemberCats.objects.filter(pk=category_id).update(min=4)
-#                 StartLists.objects.filter(pk=winner.pk).update(place=1)
-#             if b_count == 2:  # полуфинал
-#                 MemberCats.objects.filter(pk=category_id).update(min=1)
-#                 a_member = StartLists.objects.get(category_id=category_id, loses=0)
-#                 # b_member = StartLists.objects.get(category_id=category_id, loses=1)
-#                 # StartLists.objects.filter(pk=a_member.pk).update(pair=b_member.member_id, position=2)
-#                 # StartLists.objects.filter(pk=b_member.pk).update(pair=a_member.member_id, position=1)
-#                 if all_cat > 3:
-#                     # Изменяем позицию финалиста, чтобы он был ниже полуфиналистов в списке
-#                     # print('изменяем финалиста =', a_member.member_id, 'pos=', position['position__max'] + 1)
-#                     StartLists.objects.filter(pk=a_member.pk).update(position=position['position__max'] + 1)
-#             if b_count == 1:  # финал
-#                 a_member = StartLists.objects.get(category_id=category_id, pair=None, loses=0)
-#                 b_member = StartLists.objects.get(category_id=category_id, pair=None, loses=1)
-#                 StartLists.objects.filter(pk=a_member.pk).update(pair=b_member.member_id, position=2)
-#                 StartLists.objects.filter(pk=b_member.pk).update(pair=a_member.member_id, position=1)
-#                 MemberCats.objects.filter(pk=category_id).update(min=2)
-#
-#
-#         elif a_count == 0:
-#             if b_count == 1:  # победитель
-#                 MemberCats.objects.filter(pk=category_id).update(min=4)
-#                 StartLists.objects.filter(pk=winner.pk).update(place=1)
-#             if b_count == 2:  # суперфинал
-#                 MemberCats.objects.filter(pk=category_id).update(min=3)
-#         else:
-#             MemberCats.objects.filter(pk=category_id).update(min=0)
-#     return JsonResponse(response)
-
-
 def set_winner(request):
     winner_id = request.POST.get('winner_id', None)
     category_id = request.POST.get('category_id', None)
@@ -148,9 +83,52 @@ def set_winner(request):
     response = {
         'is_taken': 0}
     if user_id == owner_id:  # Если пользователь владелец матча и может производить эти действия
-        # TODO: реализовать алгоритм
-        pass
+        winner = StartLists.objects.get(category_id=category_id, member_id=winner_id,
+                                        act=True)  # строка спортсмена в StartLists
+        loser_id = winner.pair
+        loser = StartLists.objects.get(category_id=category_id, member_id=loser_id, act=True)
+        position = StartLists.objects.filter(category_id=category_id).aggregate(Max("position"))['position__max']
+        place = StartLists.objects.filter(category_id=category_id, place__gt=0).aggregate(Min("place"))['place__min']
+        member_count = MemberCats.objects.get(pk=category_id).member_count
+        step = StartLists.objects.filter(category_id=category_id).aggregate(Max("step"))['step__max']
+        StartLists.objects.filter(category_id=category_id, member_id=winner_id, act=True).update(act=False)
+        StartLists.objects.filter(category_id=category_id, member_id=loser_id, act=True).update(act=False)
+        if winner.group == 3:  # состоялся поединок за 5 и 6 место
+            query = StartLists(category_id=category_id, member_id=winner_id, act=True, position=position + 2,
+                               step=step + 1, group=winner.group + 1, match_id=match_id, place=5, fo=loser.fo)
+            query.save()
+        else:
+            query = StartLists(category_id=category_id, member_id=winner_id, act=True, position=position + 1,
+                               step=step + 1,
+                               group=winner.group, match_id=match_id, fo=winner.fo)  # Победитель на следующую ступень
+            query.save()
+        if place:
+            p = place - 1
+        else:
+            p = member_count  # определяем текущее место в категории
+        if loser.group == 3:  # состоялся поединок за 5 и 6 место
+            query = StartLists(category_id=category_id, member_id=loser_id, act=True, position=position + 2,
+                               step=step + 1, group=loser.group + 1, match_id=match_id, place=6, fo=loser.fo)
+            query.save()
+        elif loser.group == 2:  # Если участник выбывает, надо определить его место.
+            query = StartLists(category_id=category_id, member_id=loser_id, act=True, position=position + 2,
+                               step=step + 1, group=loser.group + 1, match_id=match_id, place=p, fo=loser.fo)
+            query.save()
+            if p == 2:  # Если проигравший занял второе место то выигравший занял первое
+                StartLists.objects.filter(category_id=category_id, member_id=winner_id, act=True).update(place=1)
+                MemberCats.objects.filter(pk=category_id).update(final=3)  # Признак завершившейся категории
+            elif p == 3:  # значит остался финал
+                f = MemberCats.objects.get(pk=category_id).final
+                MemberCats.objects.filter(pk=category_id).update(final=f + 1)
+        else:
+            if p == 2:  # значит остался суперфинал
+                MemberCats.objects.filter(pk=category_id).update(final=2)
+            query = StartLists(category_id=category_id, member_id=loser_id, act=True, position=position + 2,
+                               step=step + 1, group=loser.group + 1, match_id=match_id,
+                               fo=loser.fo)  # добавляем без места
+            query.save()
     return JsonResponse(response)
+
 
 def validate_username(request):
     """Проверка доступности логина"""
@@ -160,6 +138,7 @@ def validate_username(request):
     }
 
     return JsonResponse(response)
+
 
 def check_username(request):
     """Проверка наличия спортсмена"""
@@ -180,10 +159,6 @@ def check_username(request):
                 s.append('<input type="submit" id="go_to" value="{} {} {} {}">'
                          .format(member.surname, member.name, member.second_name, member.birthday))
                 s.append('</li>')
-                # s.append('<li><a href="/dashboard/select_user/?category_id={5}&match_id={6}&fo={7}'
-                #          '&member_id={4}">{0} {1} {2} {3}</a></li>'.format(member.surname, member.name,
-                #                                                            member.second_name, member.birthday,
-                #                                                            member.pk, category_id, match_id, member.fo))
             s.append('</ul></div>')
             cal = "\n".join(s)
             response = {
@@ -200,6 +175,7 @@ def check_username(request):
         }
     return JsonResponse(response)
 
+
 def month_name(num, lang):
     en = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september',
           'october', 'november', 'december']
@@ -210,13 +186,6 @@ def month_name(num, lang):
     else:
         return ru[num - 1]
 
-def start_category():
-    pass
-    # items =
-    # for user in users:
-    #     match.append({'step': 0, 'act': True, 'group': 1, 'rate': 0, 'id': user['id']})
-    # random.shuffle(match)
-    # return len(match
 
 def get_calendar(date, d):
     s = []
@@ -287,7 +256,8 @@ def get_calendar(date, d):
                         sm.append('</li>')
             s.append('\t\t\t<td class="{0}"><a href="?year={1}&month={2}&day={3}">{3}</a></td>'.format(tag, date.year,
                                                                                                        date.month,
-                                                                                                       matrix[weak][day]))
+                                                                                                       matrix[weak][
+                                                                                                           day]))
         s.append('\t\t</tr>')
     s.append('\t</tbody>\n</table>')
     cal = "\n".join(s)
@@ -320,13 +290,12 @@ def get_menu(request):
         s.append('<input type="hidden" name="selector" value="add_match">')
         s.append('<input type="submit" class="btn" id="go_to_match" value="Создать турнир">')
         s.append('</form>')
-        # s.append('<a href="/dashboard/matches/" class="button">Создать турнир</a>')
     else:
         s.append('<a href="/accounts/login/" class="menu_button">Войти</a>')
-    s.append('<a href="/accounts/login/" class="menu_button">Рейтинги</a>')
+    # s.append('<a href="/accounts/login/" class="menu_button">Рейтинги</a>')
     s.append('<a href="/members/" class="menu_button">Спортсмены</a>')
-    s.append('<a href="/accounts/login/" class="menu_button">Организаторы</a>')
-    s.append('<a href="/accounts/login/" class="menu_button">Клубы</a>')
+    # s.append('<a href="/accounts/login/" class="menu_button">Организаторы</a>')
+    # s.append('<a href="/accounts/login/" class="menu_button">Клубы</a>')
     s.append('<a href="/" class="menu_button">Главная</a>')
     # s.append('')
     result = "\n".join(s)
@@ -347,23 +316,10 @@ def get_menu_cat(match_id, request):
         s.append('<form method="post" action="/dashboard/match/">')
         s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(csrf.get_token(request)))
         s.append('<input type="hidden" name="selector" value="start_match" />')
-        # s.append('<input type="hidden" name="hand" value="2" />')
         s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
         s.append('<input type="submit" id="go_to_match"  value="Турнир" />')
         s.append('</form>')
         s.append('</form>')
-        s.append('<form method="post" action="/dashboard/match/">')
-        s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(csrf.get_token(request)))
-        s.append('<input type="hidden" name="selector" value="reset_match" />')
-        s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
-        s.append('<input type="submit" id="go_to_match"  value="Сбросить турнир" />')
-        s.append('</form>')
-        # s.append('<form method="post" action="/dashboard/match/">')
-        # s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(csrf.get_token(request)))
-        # s.append('<input type="hidden" name="selector" value="set_weight" />')
-        # s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
-        # s.append('<input type="submit" id="go_to_match"  value="Взвешивание" />')
-        # s.append('</form>')
     s.append('<form method="post" action="/dashboard/match/">')
     s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(csrf.get_token(request)))
     s.append('<input type="hidden" name="selector" value="start_lists" />')
@@ -380,186 +336,217 @@ def get_menu_cat(match_id, request):
     return result
 
 
-def get_match_list(match_id, category_id):  # если указан только category_id выводим только категорию иначе все категории
-    if category_id:
-        cats = MemberCats.objects.filter(pk=category_id)
-    elif match_id:
-        cats = MemberCats.objects.filter(match_id=match_id).order_by("table")
-    else:
-        return ObjectDoesNotExist
-    s = []
-    for category in cats:
-        if category.hand == '1':
-            hand = 'правая рука'
-        else:
-            hand = 'левая рука'
-        members = StartLists.objects.filter(category_id=category.pk).order_by("category_id", "place", "position")
-        if category_id:  # если выводим одну категорию, это для показа стола добавляем фото участников
-            s.append('<div class="add_category">')
-            s.append('<div class="profile"><div class="member_pic">')
-            s.append('<img src="/static/media/{}" class="img-circle member_img"></div>'.format(
-                Members.objects.get(pk=members[0].member_id).photo))
-            s.append('<div class="member_pic">')
-            s.append('<img src="/static/media/{}" class="img-circle member_img"></div>'.format(
-                Members.objects.get(pk=members[1].member_id).photo))
-            s.append('</div></div>')
-        s.append('<div class="add_category">')
-        s.append('<table class="tab_group">\n\t<tbody>\n\t\t<tr class="row_cat">\n\t\t\t<th colspan="4">'
-                 'Категория: {} {} {}'.format(category.age_category, category.weight_category, hand))
-        if category.table:
-            s.append('<a href="/dashboard/table/?id={}">( Стол:{} )</a>'.format(category.pk, category.table))
-        s.append('</th></tr>')
-        if category.min == 1:
-            s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Полуфинал</th></tr>')
-        elif category.min == 2:
-            s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Финал</th></tr>')
-        elif category.min == 3:
-            s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Суперфинал</th></tr>')
-        elif category.min == 4:
-            s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Результаты</th></tr>')
-        s.append('</tbody></table></div>')
-        s.append('<div class="add_category">')
-        s.append('<table class="tab_group">\n\t<tbody>')
-        for item in members:
-            member = Members.objects.get(pk=item.member_id)
-            parity = item.position % 2
-            if item.loses < 2:
-                if parity:
-                    s.append('<tr class="row_member">')
-                    if item.loses == 0:
-                        if category.min == 4:  # выводим победителя соревнований
-                            s.append('<td class="coll_min">1 место</td>')
-                            s.append('<td colspan="2" class="coll_name">{} {} {}</td>'.format(
-                                member.surname, member.name, member.second_name))
-                            s.append('<td class="coll_min">{}/{}</td>'.format(
-                                item.win, item.loses))
-                            continue
-                        else:
-                            s.append('<td class="coll_min">А</td>')
-                    if item.loses == 1:
-                        if category.min == 4:  # выводим победителя соревнований
-                            s.append('<td class="coll_min">1 место</td>')
-                            s.append('<td colspan="2" class="coll_name">{} {} {}</td>'.format(
-                                member.surname, member.name, member.second_name))
-                            s.append('<td class="coll_min">{}/{}</td>'.format(
-                                item.win, item.loses))
-                            continue
-                        else:
-                            s.append('<td class="coll_min">B</td>')
-                    s.append('<td class="coll_name">{} {} {}</td>'.format(member.surname, member.name, member.second_name))
-                else:
-                    s.append('<td class="coll_name">{} {} {}</td>'.format(member.surname, member.name, member.second_name))
-                    if item.loses == 0:
-                        s.append('<td class="coll_min">А</td>')
-                    if item.loses == 1:
-                        s.append('<td class="coll_min">B</td>')
-                    s.append('</tr>')
-            else:  # закончившие турнир
-                s.append('<tr class="row_member"><td class="coll_min">{} место</td>'.format(item.place))
-                s.append('<td colspan="2" class="coll_name">{} {} {}</td>'.format(
-                    member.surname, member.name, member.second_name))
-                s.append('<td class="coll_min">{}/{}</td></tr>'.format(
-                    item.win, item.loses))
-        s.append('</tbody></table></div>')
-
-    result = "\n".join(s)
-    return result
-
-
-def get_tables(user_id, match_id, token):  # TODO: тут расчитывается вывод проведения поединков
+def get_tables(user_id, match_id, token):  # Список проведения турнира (Турнир)
     owner_id = Match.objects.get(pk=match_id).owner_id
     cats = MemberCats.objects.filter(match_id=match_id).order_by("hand", "table")
-    # cats = MemberCats.objects.filter(match_id=match_id).order_by('hand', 'weight_category')
     s = []
-    for category in cats:
-        members = StartLists.objects.filter(category_id=category.pk).order_by("category_id", "place", "position")
-        if category.hand == '1':
-            h = 'правая рука'
-        else:
-            h = 'левая рука'
-        s.append('<div class="add_category">')
-        s.append('<table class="tab_group">\n\t<tbody>\n\t\t<tr class="row_cat">\n\t\t\t<th colspan="4">'
-                 'Категория: {} {} {} ({})</th>'.format(category.age_category, category.weight_category,
-                                                        category.group_category, h))
-        s.append('</tr>')
-        if category.min == 1:
-            s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Полуфинал</th></tr>')
-        elif category.min == 2:
-            s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Финал</th></tr>')
-        elif category.min == 3:
-            s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Суперфинал</th></tr>')
-        elif category.min == 4:
-            s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Результаты (победы/поражения)</th></tr>')
-        if (user_id == owner_id) and (category.min < 4):
-            s.append('<tr class="row_cat">')
-            s.append('\t\t\t<td class="coll_min">')
-            if members.count() > 0:
-                s.append('<form method="post" action="/dashboard/match/" id="{}_{}">'.format(category.pk, members[0].pk))
-                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-                s.append('<input type="hidden" name="selector" value="winner_category" />')
-                s.append('<input type="hidden" name="winner_id" value={} />'.format(members[0].member_id))
-                s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
-                s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
-                s.append('</form>')
-                s.append('<button id="{}_{}" class="button">Победил</button>'.format(category.pk, members[0].pk))
-                s.append('\t\t\t</td>')
-            s.append('<td colspan="2"></td>')
-            s.append('\t\t\t<td class="coll_min">')
-            if members.count() > 1:
-                s.append('<form method="post" action="/dashboard/match/" id="{}_{}">'.format(category.pk, members[1].pk))
-                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-                s.append('<input type="hidden" name="selector" value="winner_category" />')
-                s.append('<input type="hidden" name="winner_id" value={} />'.format(members[1].member_id))
-                s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
-                s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
-                s.append('</form>\n')
-                s.append('<button id="{}_{}" class="button">Победил</button>'.format(category.pk, members[1].pk))
-                s.append('\t\t\t</td></tr>')
+    counter_name = 0  # Идентификатор для определения значения
+    for category in cats:  # Для каждой категории
+        if category.started:
+            counter_name = counter_name + 1
+            # Определяем пары
+            members = StartLists.objects.filter(category_id=category.pk, act=True).order_by("place", "position")
+            count = StartLists.objects.filter(category_id=category.pk, act=True,
+                                              group=1).count()  # определяем финалиста 1
+            count2 = StartLists.objects.filter(category_id=category.pk, act=True, group=2).count()  # определяем финал
+            c56 = Match.objects.get(pk=match_id).c56
+            member_list = []
+            result_list = []
+            last_members = []
+            state = 0
+            i = 0  #
+            for member in members:  # Список участников (чтобы можно было применить метод pop для удаления участника)
+                member_list.append(member)
+            while member_list:
+                if member_list[i].place > 0:  # Список выбывших из соревнования
+                    # Если в списке встречаем 5 а следующее 6 место и надо провести дополнительный поединок
+                    if member_list[i].place == 5 and c56 and member_list[i].group == 3:
+                        result_list.append(member_list.pop(i))  # добавляем 5 место
+                        result_list.append(member_list.pop(i))  # добавляем 6 место
+                        StartLists.objects.filter(category_id=category.pk, act=True,  # Пары в базе
+                                                  pk=result_list[-1].pk).update(pair=result_list[-2].member_id)
+                        StartLists.objects.filter(category_id=category.pk, act=True,
+                                                  pk=result_list[-2].pk).update(pair=result_list[-1].member_id)
+                        result_list[-1].pair = result_list[-2].member_id
+                        result_list[-1].place = 0
+                        result_list[-2].pair = result_list[-1].member_id
+                        result_list[-2].place = 0
+                        continue
+                    else:
+                        last_members.insert(0, member_list.pop(i))
+                    i = 0
+                    state = 0  # если дошли до конца списка, значит пары нет и можно искать следующую пару
+                    continue
+
+                if state == 0:  # если первый участник пары
+                    if count == 1 and member_list[i].group == 1:  # Если остался один участник в А группе
+                        last_members.append(member_list.pop(i))  # Первый финалист
+                        if count2 == 1:
+                            state = 1  # если финал, то ищем пару финалисту.
+                    else:  # иначе просто добавляем участника в новую пару
+                        result_list.append(member_list.pop(i))
+                        state = 1  # Флаг поиска пары
+                    i = 0
+                    continue
+                elif state == 1:
+                    if count == 1 and count2 == 1:  # Если финал
+                        last_members.append(member_list.pop(i))
+                        StartLists.objects.filter(category_id=category.pk, act=True,  # Пары в базе
+                                                  pk=last_members[-1].pk).update(pair=last_members[-2].member_id)
+                        StartLists.objects.filter(category_id=category.pk, act=True,
+                                                  pk=last_members[-2].pk).update(pair=last_members[-1].member_id)
+                        last_members[-2].pair = last_members[-1].member_id
+                        last_members[-1].pair = last_members[-2].member_id
+                        continue
+                    if result_list[-1].group == member_list[i].group:  # является парой?
+                        result_list.append(member_list.pop(i))  # Если нашли пару в группе, добавляем следующим
+                        StartLists.objects.filter(category_id=category.pk, act=True,  # Пары в базе
+                                                  pk=result_list[-1].pk).update(pair=result_list[-2].member_id)
+                        StartLists.objects.filter(category_id=category.pk, act=True,
+                                                  pk=result_list[-2].pk).update(pair=result_list[-1].member_id)
+                        result_list[-1].pair = result_list[-2].member_id
+                        result_list[-2].pair = result_list[-1].member_id
+                        state = 0
+                        i = 0
+                    else:  # если не пара то
+                        if len(member_list) - 1 == i:  # Последнего участника просто добавляем
+                            result_list.append(member_list.pop(i))
+                        else:
+                            i = i + 1
+
+            if last_members:
+                last_members = sorted(last_members, key=lambda lists: lists.place)
+                result_list.extend(last_members)
+            if category.hand == '1':
+                h = 'правая рука'
+            else:
+                h = 'левая рука'
+            s.append('<div class="add_category">')
+            s.append('<table class="tab_group">\n\t<tbody>\n\t\t<tr class="row_cat">\n\t\t\t<th colspan="3">'
+                     'Стол: {} Категория: {} {} {} ({})</th>'.format(category.table, category.age_category,
+                                                                     category.weight_category,
+                                                                     category.group_category, h))
+            if user_id == owner_id and category.final < 3:
+                s.append('<th class="coll_field weight-input"><form>'.format(counter_name))
+                s.append('<input type="hidden" id="csrfmiddlewaretoken" name="csrfmiddlewaretoken" value="{}">'.format(token))
+                s.append('<input type="hidden" id="category_id_{0}" name="category_id_{0}" value="{0}" />'.format(category.pk))
+                s.append('<input type="hidden" id="match_id_{0}" name="match_id_{0}" value="{1}" />'.format(category.pk, match_id))
+                s.append('<input type="number" id="table_number_{0}" class="small_number" name="table_number_{0}">'.format(category.pk))
+                s.append('<button id="{}" name="set_table" type="submit" class="small_button">Изм. № стола</button></form></th>'.format(category.pk))
+            else:
+                s.append('<th></th>')
+            s.append('</tr>')
+            if category.final == 0:
+                s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Следующий поединок</th></tr>')
+            elif category.final == 1:
+                s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Финал</th></tr>')
+            elif category.final == 2:
+                s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Суперфинал</th></tr>')
+            elif category.final == 3:
+                s.append('<tr class="row_cat"><th colspan="4" class="coll_field">Результаты</th></tr>')
+            if user_id == owner_id:
+                if members.count() > 0:  # Если в категории есть участники
+                    if result_list[0].pair > 0:  # Если в категории есть пары участников
+                        s.append('<tr class="row_cat">')
+                        s.append('\t\t\t<td class="coll_min">')
+                        s.append('<form method="post">')
+                        s.append(
+                            '<input type="hidden" id="csrfmiddlewaretoken" name="csrfmiddlewaretoken" value="{}">'.format(
+                                token))
+                        s.append('<input type="hidden" id="winner_id_{0}_{1}" name="winner_id_{0}_{1}" value={0} />'.format(
+                            result_list[0].member_id, category.pk))
+                        s.append(
+                            '<input type="hidden" id="category_id_{0}_{1}" name="category_id_{0}_{1}" value={1} />'.format(result_list[0].member_id, category.pk))
+                        s.append('<input type="hidden" id="match_id_{0}_{1}" name="match_id_{0}_{1}" value={2} />'.format(result_list[0].member_id, category.pk, match_id))
+                        s.append('<button id="{}_{}" name="set_winner" type="submit" class="small_button">Победил</button>'.format(result_list[0].member_id, category.pk))
+                        s.append('</form>')
+                        s.append('\t\t\t</td>')
+                        if category.started:
+                            s.append('\t\t\t<td class="coll_button">')
+                            s.append(
+                                '<form method="post">')
+                            s.append(
+                                '<input type="hidden" id="csrfmiddlewaretoken" name="csrfmiddlewaretoken" value="{}">'.format(
+                                    token))
+                            s.append(
+                                '<input type="hidden" id="category_id_{0}_{1}" name="category_id_{0}_{1}" value={1} />'.format(
+                                    match_id, category.pk))
+                            s.append(
+                                '<input type="hidden" id="match_id_{0}_{1}" name="match_id_{0}_{1}" value={0} />'.format(
+                                    match_id, category.pk))
+                            s.append(
+                                '<button id="{0}_{1}" name="rollback" type="submit" class="small_button">Отменить</button>'.format(
+                                    match_id, category.pk))
+                            s.append('</form>')
+                            s.append('\t\t\t</td>')
+                            s.append('<td></td>')
+                        else:
+                            s.append('<td colspan="2"></td>')
+                        s.append('\t\t\t<td class="coll_min">')
+                        s.append('<form method="post">')
+                        s.append(
+                            '<input type="hidden" id="csrfmiddlewaretoken" name="csrfmiddlewaretoken" value="{}">'.format(
+                                token))
+                        s.append(
+                            '<input type="hidden" id="winner_id_{0}_{1}" name="winner_id_{0}_{1}" value={0} />'.format(
+                                result_list[1].member_id, category.pk))
+                        s.append(
+                            '<input type="hidden" id="category_id_{0}_{1}" name="category_id_{0}_{1}" value={1} />'.format(
+                                result_list[1].member_id, category.pk))
+                        s.append(
+                            '<input type="hidden" id="match_id_{0}_{1}" name="match_id_{0}_{1}" value={2} />'.format(
+                                result_list[1].member_id, category.pk, match_id))
+                        s.append(
+                            '<button id="{}_{}" name="set_winner" type="submit" class="small_button">Победил</button>'.format(
+                                result_list[1].member_id, category.pk))
+                        s.append('</form>')
+            s.append('\t\t\t</td></tr>')
             s.append('</tbody></table></div>')
             s.append('<div class="add_category">')
             s.append('<table class="tab_group">\n\t<tbody>')
-        for member in members:
-            m = Members.objects.get(pk=member.member_id)
-            parity = member.position % 2
-            if member.loses < 2:  # если спортсмен еще участвует в соревновании
-                if parity:  # если у спортсмена нечетный номер в position
-                    s.append('<tr class="row_member">')
-                    if member.loses == 0:  # если у спортсмена нет поражений
-                        if category.min == 4:  # если результат выводим победителя соревнований
-                            s.append('<td class="coll_min">1 место</td>')
-                            s.append('<td colspan="2" class="coll_name">{} {} {}</td>'.format(
-                                m.surname, m.name, m.second_name))
-                            s.append('<td class="coll_min">{}/{}</td>'.format(
-                                member.win, member.loses))
-                            continue
-                        else:  # если нет поражений но соревнование продолжается то спортсмен в группе А
-                            s.append('<td class="coll_min">А</td>')
-                    if member.loses == 1:  # если у спортсмена 1 поражение
-                        if category.min == 4:  # если результат выводим победителя соревнований
-                            s.append('<td class="coll_min">1 место</td>')
-                            s.append('<td colspan="2" class="coll_name">{} {} {}</td>'.format(
-                                m.surname, m.name, m.second_name))
-                            s.append('<td class="coll_min">{}/{}</td>'.format(
-                                member.win, member.loses))
-                            continue
-                        else:  # если 1 поражение и соревнование продолжается то спортсмен в группе В
-                            s.append('<td class="coll_min">B</td>')
-                    s.append('<td class="coll_name">{} {} {}</td>'.format(m.surname, m.name, m.second_name))
+            k = 0  # какой в паре
+            for i in range(len(result_list)):
+                if result_list[i]:
+                    m = Members.objects.get(pk=result_list[i].member_id)
+                    if result_list[i].place == 0:  # Если еще не вылетел
+                        if result_list[i].pair > 0:  # Если у участника есть пара
+                            if k == 0:  # Если первый в паре
+                                s.append('<tr class="row_member">')
+                                if result_list[i].group == 1:
+                                    s.append('<td class="coll_min">А</td>')
+                                if result_list[i].group == 2:
+                                    s.append('<td class="coll_min">B</td>')
+                                if result_list[i].group == 3:
+                                    if result_list[i].place == 0:
+                                        s.append('<td class="coll_min">5 или 6</td>')
+                                if result_list[i].pair > 0:
+                                    s.append(
+                                        '<td class="coll_name">{} {} {}</td>'.format(m.surname, m.name, m.second_name))
+                                k = 1
+                            else:  # Если второй в паре
+                                if result_list[i].pair > 0:
+                                    s.append('<td class="coll_name">{} {} {}</td></tr>'.format(m.surname, m.name,
+                                                                                               m.second_name))
+                                k = 0
+                        else:  # Если у участника нет пары
+                            s.append('<tr class="row_member">')
+                            if result_list[i].group == 1:
+                                s.append('<td class="coll_min">А</td>')
+                            if result_list[i].group == 2:
+                                s.append('<td class="coll_min">B</td>')
+                            s.append('<td class="coll_name" colspan="3">{} {} {}</td>'.format(m.surname, m.name,
+                                                                                              m.second_name))
+                            s.append('</tr>')
+                    else:  # Если участник уже занял какое-то место
+                        s.append('<tr class="row_member">')
+                        s.append('<td class="coll_min">{} местo</td>'.format(result_list[i].place))
+                        s.append(
+                            '<td class="coll_name" colspan="2">{} {} {}</td>'.format(m.surname, m.name, m.second_name))
+                        s.append('</tr>')
                 else:
-                    s.append('<td class="coll_name">{} {} {}</td>'.format(m.surname, m.name, m.second_name))
-                    if member.loses == 0:
-                        s.append('<td class="coll_min">А</td>')
-                    if member.loses == 1:
-                        s.append('<td class="coll_min">B</td>')
-                    s.append('</tr>')
-            else:
-                s.append('<tr class="row_member"><td class="coll_min">{} место</td>'.format(member.place))
-                s.append('<td colspan="2" class="coll_name">{} {} {}</td>'.format(
-                    m.surname, m.name, m.second_name))
-                s.append('<td class="coll_min">{}/{}</td></tr>'.format(
-                    member.win, member.loses))
+                    s.append('<tr class="row_member"><td class="coll_min"></td><td class="coll_name"></td>')
 
-        s.append('</tbody></table></div>')
+            s.append('</tbody></table></div>')
     lst = "\n".join(s)
     return lst
 
@@ -570,7 +557,7 @@ def get_list(match_id, request, token):  # Стартовые списки
     s = []
     categories = MemberCats.objects.filter(match_id=match_id)
     for category in categories:
-        members = StartLists.objects.filter(category_id=category.pk)
+        members = StartLists.objects.filter(category_id=category.pk, act=True).order_by('place')
         if category.hand == '1':
             hand = 'правая рука'
         else:
@@ -579,31 +566,56 @@ def get_list(match_id, request, token):  # Стартовые списки
         s.append('<table class="tab_group">\n\t<tbody>\n\t\t<tr class="row_cat">\n\t\t\t<th colspan="3">'
                  'Категория: {} {} {} ({})</th>'.format(category.age_category, category.weight_category,
                                                         category.group_category, hand))
-        s.append('\t\t\t<td class="coll_button">')
-        s.append('<form method="post" action="/dashboard/match/">')
-        s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-        s.append('<input type="hidden" name="selector" value="start_category" />')
-        s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
-        s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
-        s.append('<input type="submit" id="row_cat"  value="Начать категорию" />')
-        s.append('</form>\n\t\t\t</td>')
         if user_id == owner_id:
-            s.append('\t\t\t<td class="coll_button">')
-            s.append('<form method="post" action="/dashboard/match/">')
-            s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-            s.append('<input type="hidden" name="selector" value="delete_category" />')
-            s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
-            s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
-            s.append('<input type="submit" id="row_cat"  value="Удалить категорию" />')
-            s.append('</form>\n\t\t\t</td>')
-            s.append('\t\t\t<td class="coll_button">')
-            s.append('<form method="post" action="/dashboard/match/">')
-            s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-            s.append('<input type="hidden" name="selector" value="add_member" />')
-            s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
-            s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
-            s.append('<input type="submit" id="row_cat"  value="Добавить участника" />')
-            s.append('</form>\n\t\t\t</td>')
+            if category.final < 3:  # Если категория еще не завершена ее можно остановить или начать
+                if not category.started:
+                    if category.member_count > 1:
+                        s.append('\t\t\t<td class="coll_button">')
+                        s.append('<form method="post" action="/dashboard/match/">')
+                        s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
+                        s.append('<input type="hidden" name="selector" value="start_category" />')
+                        s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
+                        s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
+                        s.append('<input type="submit" id="row_cat"  value="Начать категорию" />')
+                        s.append('</form>\n\t\t\t</td>')
+                else:
+                    s.append('\t\t\t<td class="coll_button">')
+                    s.append('<form method="post" action="/dashboard/match/">')
+                    s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
+                    s.append('<input type="hidden" name="selector" value="stop_category" />')
+                    s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
+                    s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
+                    s.append('<input type="submit" id="row_cat"  value="Остановить категорию" />')
+                    s.append('</form>\n\t\t\t</td>')
+            else:  # добавим кнопку вывода результатов в PDF
+                s.append('\t\t\t<td class="coll_button">')
+                s.append('<form method="post" action="/dashboard/match/">')
+                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
+                s.append('<input type="hidden" name="selector" value="print_result" />')
+                s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
+                s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
+                s.append('<input type="submit" id="row_cat"  value="Отчет XLSX" />')
+                s.append('</form>\n\t\t\t</td>')
+            if not category.started:
+                s.append('\t\t\t<td class="coll_button">')
+                s.append('<form method="post" action="/dashboard/match/">')
+                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
+                s.append('<input type="hidden" name="selector" value="delete_category" />')
+                s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
+                s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
+                s.append('<input type="submit" id="row_cat"  value="Удалить категорию" />')
+                s.append('</form>\n\t\t\t</td>')
+
+                s.append('\t\t\t<td class="coll_button">')
+                s.append('<form method="post" action="/dashboard/match/">')
+                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
+                s.append('<input type="hidden" name="selector" value="add_member" />')
+                s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
+                s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
+                s.append('<input type="submit" id="row_cat"  value="Добавить участника" />')
+                s.append('</form>\n\t\t\t</td>')
+            else:
+                s.append('\t\t\t<td class="coll_button"></td><td class="coll_button"></td>')
         s.append('</tr>')
         s.append('</tbody></table></div>')
         s.append('<table class="tab_group">\n\t<tbody>')
@@ -613,8 +625,12 @@ def get_list(match_id, request, token):  # Стартовые списки
         s.append('\t<th class="coll_field">Дата рождения</th>')
         s.append('\t<th class="coll_field">Федеральный округ</th>')
         s.append('\t<th class="coll_field">Команда</th>')
-        s.append('\t<th class="coll_field" colspan=2>Вес</th>')
-        s.append('\t<th class="coll_field" colspan=2></th>')
+        if category.final == 3:
+            s.append('\t<th class="coll_field">Вес</th>')
+            s.append('\t<th class="coll_field">Место</th>')
+            s.append('\t<th class="coll_field">Очки</th>')
+        else:
+            s.append('\t<th class="coll_field" colspan=3>Вес</th>')
         s.append('</tr>')
         for member in members:
             try:  # есть ли спортсмен
@@ -632,35 +648,18 @@ def get_list(match_id, request, token):  # Стартовые списки
             s.append('\t\t\t<th class="coll_name">{}</th>'.format(m.fo))
             s.append('\t\t\t<th class="coll_field">{}</th>'.format(m.team))
             # Измерение веса участника
-            if m.weight:
-                s.append('\t\t\t<td class="coll_field weight-input">'
-                         '<form id="weight_id_{1}">'
-                         '<input type="number" name="weight" placeholder="{2}" step="0.01" min="0">'
-                         '<input type="hidden" name="match_id" value="{0}">'
-                         '<input type="hidden" name="member_id" value="{1}">'.format(match_id, m.pk,
-                                                                                     m.weight))
-                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-                s.append('</form>\n\t\t</td>')
-                s.append('<td><button id="{}" class="button">Сохранить</button></td>'.format(m.pk))
-            else:
-                s.append('\t\t\t<td class="coll_field weight-input">'
-                         '<form id="weight_id_{1}">'
-                         '<input type="number" name="weight" placeholder="1.0" step="0.01" min="0">'
-                         '<input type="hidden" name="match_id" value="{0}">'
-                         '<input type="hidden" name="member_id" value="{1}">'.format(match_id, m.pk))
-                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-                s.append('</form>\n\t\t</td>')
-                s.append('<td><button id="{}" class="button">Сохранить</button></td>'.format(m.pk))
-            if user_id == owner_id:
-                s.append('\t\t\t<td class="coll_button">')
-                s.append('<form method="post" action="/dashboard/match/">')
-                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-                s.append('<input type="hidden" name="selector" value="change_member" />')
-                s.append('<input type="hidden" name="member_id" value={} />'.format(member.member_id))
-                s.append('<input type="hidden" name="category_id" value={} />'.format(category.pk))
-                s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
-                s.append('<input type="submit" id="row_cat"  value="Изменить категорию" />')
-                s.append('</form>\n\t\t\t</td>')
+            if user_id == owner_id and not category.started:
+                s.append('<td class="coll_field weight-input">'
+                         '<form method="post" action="/dashboard/match/" id="set_weight">'
+                         '<input type="number" id="weight_{1}_{3}" name="weight_{1}_{3}" placeholder="{2}" value="{2}" step="0.01" min="0">'
+                         '<input type="hidden" id="match_id_{1}_{3}" name="match_id_{1}_{3}" value="{0}">'
+                         '<input type="hidden" id="category_id_{1}" name="category_id_{1}" value="{3}">'
+                         '<input type="hidden" id="member_id_{1}_{3}" name="member_id_{1}_{3}" value="{1}">'.format(match_id, m.pk, m.weight, category.pk))
+                s.append('<input type="hidden" id="csrfmiddlewaretoken" name="csrfmiddlewaretoken" value="{}">'.format(
+                    token))
+                # s.append('<button id="{}" type="submit" class="button">Сохранить</button>'.format(m.pk))
+                s.append('</form></td>')
+                s.append('<td><button id="{}_{}" name="set_weight" type="submit" class="button">Сохранить</button></td>'.format(m.pk, category.pk))
                 s.append('\t\t\t<td class="coll_button">')
                 s.append('<form method="post" action="/dashboard/match/">')
                 s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
@@ -670,54 +669,13 @@ def get_list(match_id, request, token):  # Стартовые списки
                 s.append('<input type="hidden" name="match_id" value={} />'.format(match_id))
                 s.append('<input type="submit" id="row_cat"  value="Удалить участника" />')
                 s.append('</form>\n\t\t\t</td>')
-            s.append('</tr>')
-        s.append('</tbody></table>')
-    result = "\n".join(s)
-    return result
-
-
-def get_weight_list(user_id, match_id, token):
-    s = []
-    owner_id = Match.objects.get(pk=match_id).owner_id
-    items = StartLists.objects.filter(match_id=match_id).order_by("fo")
-    if user_id == owner_id:
-        s.append('<table class="tab_group">\n\t<tbody>')
-        s.append('<tr class="row_header">')
-        s.append('\t<th class="coll_field">Фамилия, Имя, Отчество</th>')
-        s.append('\t<th class="coll_field">Дата рождения</th>')
-        s.append('\t<th class="coll_field">Федеральный округ</th>')
-        s.append('\t<th class="coll_field">Вес</th>')
-        s.append('\t<th class="coll_field"></th>')
-        s.append('</tr>')
-        for item in items:
-            member = Members.objects.get(pk=item.member_id)
-            s.append('<tr class="row_member">')
-            s.append(
-                '\t\t\t<td class="coll_name">{} {} {}</td>'.format(member.surname, member.name, member.second_name))
-            if member.birthday:
-                s.append('\t\t\t<th class="coll_field">{}</th>'.format(member.birthday))
             else:
-                s.append('\t\t\t<td class="coll_field"></td>')
-            s.append('\t\t\t<th class="coll_field">{}</th>'.format(member.fo))
-            if member.weight:
-                #     s.append('\t\t\t<th colspan="2" class="coll_field">{}</th>'.format(member.weight))
-                s.append('\t\t\t<td class="coll_field">'
-                         '<form id="weight_id_{1}">'
-                         '<input type="number" name="weight" placeholder="{2}" step="0.01" min="0">'
-                         '<input type="hidden" name="match_id" value="{0}">'
-                         '<input type="hidden" name="member_id" value="{1}">'.format(match_id, member.pk, member.weight))
-                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-                s.append('</form>\n\t\t</td>')
-                s.append('<td><button id="{}" class="button">Сохранить</button></td>'.format(member.pk))
-            else:
-                s.append('\t\t\t<td class="coll_field">'
-                         '<form id="weight_id_{1}">'
-                         '<input type="number" name="weight" placeholder="1.0" step="0.01" min="0">'
-                         '<input type="hidden" name="match_id" value="{0}">'
-                         '<input type="hidden" name="member_id" value="{1}">'.format(match_id, member.pk))
-                s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(token))
-                s.append('</form>\n\t\t</td>')
-                s.append('<td><button id="{}" class="button">Сохранить</button></td>'.format(member.pk))
+                if category.final == 3:
+                    s.append('\t\t\t<th class="coll_field">{}</th>'.format(m.weight))
+                    s.append('\t\t\t<th class="coll_field" >{}</th>'.format(member.place))
+                    s.append('\t\t\t<th class="coll_field" >{}</th>'.format(points[member.place - 1]))
+                else:
+                    s.append('\t\t\t<th class="coll_field colspan="3">{}</th>'.format(m.weight))
             s.append('</tr>')
         s.append('</tbody></table>')
     result = "\n".join(s)
@@ -728,7 +686,7 @@ def get_header(user):
     s = []
     if user:
         s.append('<div class="header-login">Вы вошли как {0}</div>'.format(user))
-    s.append('<div class="header-text">Система проведения турниров по армрестлингу</div>')
+    s.append('<div class="header-text">Платформа проведения турниров по армрестлингу</div>')
     result = "\n".join(s)
     return result
 
@@ -778,20 +736,16 @@ def get_match_info(match_id, user_id, request):
     return match
 
 
-def get_annonce(date):
-    sm = []
-    end_date = datetime.date.fromisoformat('{0}-{1:0>2}-{2:0>2}'.format(date.year, 12, 31))
-    query = Match.objects.filter(date__range=(date, end_date))
-    # print(query.count())
-    for item in query:
-        sm.append('<li class="cart-item">\n\t<span class="cart-item-pic">'
-                  '\t\t<img src="/static/media/{}">'.format(item.poster))
-        sm.append('\t</span><a href="/info/?id={}">{}</a>'.format(item.pk, item.title))
-        sm.append('<span class="cart-item-desc">{}</span>'.format(item.date))
-        sm.append('<span class="cart-item-price">{}</span>'.format(item.location))
-        sm.append('</li>')
-    match = "\n".join(sm)
-    return match
+def get_annonce(date):  # Импорт из ВК
+    s = []
+    s.append('<script src="https://vk.com/js/api/openapi.js?168" type="text/javascript"></script>')
+    s.append('<table class="annonce"><tr><th><div id="vk_groups"></div></th></tr></table><script type="text/javascript">VK.Widgets.Group("vk_groups",'
+             ' {mode: 4, wide: 1, width: 600, height: 800,  color1: "242930", color2: "8a99af", color3: "8a99af"},'
+             ' 206407744);</script>')
+    result = "\n".join(s)
+    return result
+
+
 
 def index(request):  # точка входа в приложение, по результатам авторизации
     data = {}
@@ -840,6 +794,7 @@ def info(request):
         else:
             return redirect("/")
 
+
 def user_login(request):
     if request.method == 'POST':
         form = LoginForm(request.POST)
@@ -850,7 +805,7 @@ def user_login(request):
                 if user.is_active:
                     login(request, user)
                     user_id = request.user.id
-                    matches = Match.objects.filter(owner_id=user_id, arch=0)
+                    # matches = Match.objects.filter(owner_id=user_id, arch=0)
                     # return render(request, 'pages/dashboard.html', {"username": user, 'matches': matches})
                     return redirect("/")
                 else:
@@ -869,17 +824,22 @@ def user_logout(request):
 def user_password_change(request):
     return render(request, 'registration/password_change_form.html')
 
+
 def user_password_change_done(request):
     return render(request, 'registration/password_change_done.html')
+
 
 def user_password_reset(request):
     return render(request, 'registration/password_reset_form.html')
 
+
 def user_password_reset_done(request):
     return render(request, 'registration/password_reset_done.html')
 
+
 def password_reset_confirm(request):
     return render(request, 'registration/password_reset_confirm.html')
+
 
 def password_reset_done(request):
     return render(request, 'registration/password_reset_done.html')
@@ -914,10 +874,17 @@ def show_match_list(request):
     return render(request, 'pages/index.html', {})
 
 
+def set_border(ws, cell_range):
+    thin = Side(border_style="thin", color="000000")
+    for row in ws[cell_range]:
+        for cell in row:
+            cell.border = Border(top=thin, left=thin, right=thin, bottom=thin)
+
 def match(request):
     data = {}
     user_id = None
     user = None
+    match_id = None
     if request.user.is_authenticated:
         user = request.user
         user_id = request.user.id
@@ -927,12 +894,11 @@ def match(request):
     if request.method == 'GET':  # редирект
         match_id = request.GET.get("id")
         if match_id:
-            data['start_list'] = get_list(match_id, request)
+            data['start_list'] = get_list(match_id, request, csrf.get_token(request))
             data['menu_cat'] = get_menu_cat(match_id, request)
             query = Match.objects.get(pk=match_id)
             data['title'] = query.title
-
-    if request.method == 'POST':
+    elif request.method == 'POST':
         # form = ScoreForm(request.POST) # заполнить форму данными
         action = request.POST.get("selector", "Undefined")
         match_id = request.POST.get("match_id")
@@ -946,9 +912,11 @@ def match(request):
         if action == 'edit_match':
             match = Match.objects.get(pk=match_id)
             form = ScoreForm(initial={'title': match.title, 'location': match.location, 'fo': match.fo,
-                                     'date': '{0}-{1:0>2}-{2:0>2}'.format(match.date.year, match.date.month, match.date.day),
-                                     'gj': match.gj, 'gs': match.gs, 'table_count': match.table_count,
-                                     'contacts': match.contacts, 'hands': match.hands, 'poster': match.poster})
+                                      'date': '{0}-{1:0>2}-{2:0>2}'.format(match.date.year, match.date.month,
+                                                                           match.date.day),
+                                      'gj': match.gj, 'gs': match.gs, 'table_count': match.table_count,
+                                      'contacts': match.contacts, 'hands': match.hands, 'poster': match.poster,
+                                      'c56': match.c56})
             form.match_id = match.pk
             form.owner_id = match.owner_id
             data['edit_form'] = form
@@ -966,25 +934,25 @@ def match(request):
             return redirect('/info/?id={}'.format(match_id))
 
         if action == 'add_match':
-            form = ScoreForm()
+            form = ScoreForm(request.POST or None, request.FILES)
             data['score_form'] = form
             return render(request, 'pages/match.html', context=data)
 
         if action == 'set_match':
             user_id = request.user.id  # id пользователя организатора соревнования
-            form = ScoreForm(request.POST, request.FILES)
-            form.match_id = match_id
-            form.owner_id = user_id
+            form = ScoreForm(request.POST or None, request.FILES)
             if form.is_valid():
+                form.owner_id = user_id
                 last = form.save()
                 return redirect('/info/?id={}'.format(last.pk))
             return redirect(request.path)
 
         if action == 'reset_match':  # сброс турнира
             if match_id:
-                MemberCats.objects.filter(match_id=match_id).update(started=False, table=None)
-                StartLists.objects.filter(match_id=match_id).update(place=0, position=0, round=0, loses=0, win=0, pair=None)
-                data['start_list'] = get_list(match_id, request)
+                MemberCats.objects.filter(match_id=match_id).update(status=0)
+                StartLists.objects.filter(match_id=match_id).update(place=0, position=0, step=0, act=False,
+                                                                    group=1, pair=None)
+                data['start_list'] = get_list(match_id, request, csrf.get_token(request))
 
         if action == 'delete_match':  # удаление турнира
             if match_id:
@@ -1001,24 +969,47 @@ def match(request):
             form.match_id = match_id
             if form.is_valid():
                 form.save()
-            data['start_list'] = get_list(match_id, request)
+            data['start_list'] = get_list(match_id, request, csrf.get_token(request))
             return redirect("/dashboard/match/?id={}".format(match_id))
 
         if action == 'delete_category':  # удаление категории
             category_id = request.POST.get('category_id')
             MemberCats.objects.filter(pk=category_id).delete()
-            data['start_list'] = get_list(match_id, request)
+            data['start_list'] = get_list(match_id, request, csrf.get_token(request))
             MatchHistory.objects.filter(category=category_id).delete()
 
         if action == 'start_category':  # Начало борьбы в категории
-            pass
+            category_id = request.POST.get('category_id')
+            match_id = request.POST.get('match_id')
+            list_id = list(
+                StartLists.objects.filter(category_id=category_id).values_list("id",
+                                                                               flat=True))  # id участников в категории
+            random.shuffle(list_id)  # перемешиваем для жеребьевки
+            MemberCats.objects.filter(pk=category_id).update(member_count=len(list_id))
+            position = 1
+            while list_id:  # жеребьевка для категории, создание очереди
+                member_id = list_id.pop(0)
+                StartLists.objects.filter(pk=member_id).update(position=position, step=0, act=True, group=1, pair=0,
+                                                               place=0)
+                position = position + 1
+            MemberCats.objects.filter(pk=category_id).update(started=True)
+            data['start_list'] = get_list(match_id, request, csrf.get_token(request))
+
+        if action == 'stop_category':  # Сброс борьбы в категории
+            category_id = request.POST.get('category_id')
+            StartLists.objects.filter(category_id=category_id, step__gte=1).delete()
+            StartLists.objects.filter(category_id=category_id).update(position=0, place=0, group=1, act=True, pair=0)
+            MemberCats.objects.filter(pk=category_id).update(started=False, final=False)
+            data['start_list'] = get_list(match_id, request, csrf.get_token(request))
 
         if action == 'add_member':
             form = MembersForm()
             data['category_id'] = request.POST.get('category_id')
             data['match_id'] = request.POST.get('match_id')
             data['members_form'] = form
-            return render(request, 'pages/add_member.html', context=data)
+            cat = MemberCats.objects.get(pk=data['category_id'])
+            if not cat.started:
+                return render(request, 'pages/add_member.html', context=data)
 
         if action == 'set_member':
             category_id = request.POST.get('category_id')
@@ -1029,10 +1020,130 @@ def match(request):
                 just_created = form.save()
                 StartLists.objects.create(member_id=just_created.id, category_id=category_id, match_id=match_id,
                                           fo=just_created.fo)
-            data['start_list'] = get_list(match_id, request)
+                count = StartLists.objects.filter(category_id=category_id, step=0).count()
+                MemberCats.objects.filter(pk=category_id).update(member_count=count)
+            data['start_list'] = get_list(match_id, request, csrf.get_token(request))
 
         if action == 'start_lists':
             data['start_list'] = get_list(match_id, request, csrf.get_token(request))
+
+        if action == 'print_result':
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Результаты турнира"
+            # Формирование титула
+            m1 = Match.objects.get(pk=match_id)
+            ws.merge_cells('{}{}:{}{}'.format(cols[1], 1, cols[8], 1))
+            cell = '{}{}'.format(cols[1], 1)
+            ws[cell].value = 'Турнир: ' + m1.title
+            ws[cell].font = Font(bold=True)
+            ws[cell].alignment = Alignment(horizontal='center')
+            ws.merge_cells('{}{}:{}{}'.format(cols[1], 2, cols[8], 2))
+            cell = '{}{}'.format(cols[1], 2)
+            ws[cell].value = 'Место проведения: ' + m1.location
+            ws[cell].font = Font(bold=True)
+            ws[cell].alignment = Alignment(horizontal='center')
+            ws.merge_cells('{}{}:{}{}'.format(cols[1], 3, cols[8], 3))
+            cell = '{}{}'.format(cols[1], 3)
+            ws[cell].value = 'Дата проведения: {}'.format(m1.date)
+            ws[cell].font = Font(bold=True)
+            ws[cell].alignment = Alignment(horizontal='center')
+            query = StartLists.objects.filter(match_id=match_id,  act=True).order_by('category_id', 'place')
+            # Формирование заголовка отчета для категории
+            row = 3  # Текущая строка
+            if query:
+                category = 0
+                ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+                ws.page_setup.paperSize = ws.PAPERSIZE_A4
+                ws.page_setup.fitToWidth = 1
+                ws.column_dimensions['C'].width = 40
+                ws.column_dimensions['D'].width = 13
+                ws.column_dimensions['E'].width = 13
+                ws.column_dimensions['F'].width = 46
+                for item in query:
+                    row = row + 1
+                    if category != item.category_id:
+                        category = item.category_id
+
+                        ws.merge_cells('{}{}:{}{}'.format(cols[1], row, cols[8], row))
+                        cell = '{}{}'.format(cols[1], row)
+                        ws[cell].font = Font(bold=True)
+                        ws[cell].fill = PatternFill(fill_type='solid', fgColor='00D0D0D0')
+                        ws[cell].value = 'Весовая категория {} {}'.format(
+                            MemberCats.objects.get(pk=category).age_category,
+                            MemberCats.objects.get(pk=category).weight_category)
+                        row = row + 1
+                        cell = '{}{}'.format(cols[1], row)
+                        ws[cell].value = 'Место'
+                        ws[cell].font = Font(bold=True)
+                        ws[cell].alignment = Alignment(horizontal='center')
+                        cell = '{}{}'.format(cols[2], row)
+                        ws[cell].value = 'Фамилия, Имя, Отчество'
+                        ws[cell].font = Font(bold=True)
+                        ws[cell].alignment = Alignment(horizontal='center')
+                        cell = '{}{}'.format(cols[3], row)
+                        ws[cell].value = 'Спортивное звание'
+                        ws[cell].font = Font(bold=True, size=10)
+                        ws[cell].alignment = Alignment(wrap_text=True, horizontal='center')
+                        cell = '{}{}'.format(cols[4], row)
+                        ws[cell].value = 'Дата рождения'
+                        ws[cell].font = Font(bold=True, size=10)
+                        ws[cell].alignment = Alignment(wrap_text=True, horizontal='center')
+                        cell = '{}{}'.format(cols[5], row)
+                        ws[cell].value = 'Субъект Российской Федерации'
+                        ws[cell].font = Font(bold=True)
+                        ws[cell].alignment = Alignment(horizontal='center')
+                        cell = '{}{}'.format(cols[6], row)
+                        ws[cell].value = 'Команда'
+                        ws[cell].font = Font(bold=True)
+                        ws[cell].alignment = Alignment(horizontal='center')
+                        cell = '{}{}'.format(cols[7], row)
+                        ws[cell].value = 'Очки'
+                        ws[cell].font = Font(bold=True)
+                        ws[cell].alignment = Alignment(horizontal='center')
+                        cell = '{}{}'.format(cols[8], row)
+                        ws[cell].value = 'Вес'
+                        ws[cell].font = Font(bold=True)
+                        ws[cell].alignment = Alignment(horizontal='center')
+                        row = row + 1
+                    cell = '{}{}'.format(cols[1], row)
+                    ws[cell].value = item.place
+                    ws[cell].alignment = Alignment(horizontal='center')
+                    cell = '{}{}'.format(cols[2], row)
+                    member = Members.objects.get(pk=item.member_id)
+                    ws[cell].value = '{} {} {}'.format(member.surname, member.name, member.second_name)
+                    cell = '{}{}'.format(cols[3], row)
+                    ws[cell].value = member.rank
+                    ws[cell].alignment = Alignment(horizontal='center')
+                    cell = '{}{}'.format(cols[4], row)
+                    ws[cell].value = member.birthday
+                    ws[cell].alignment = Alignment(horizontal='center')
+                    cell = '{}{}'.format(cols[5], row)
+                    ws[cell].value = item.fo
+                    cell = '{}{}'.format(cols[6], row)
+                    ws[cell].value = member.team
+                    cell = '{}{}'.format(cols[7], row)
+                    ws[cell].value = points[item.place - 1]
+                    ws[cell].alignment = Alignment(horizontal='center')
+                    cell = '{}{}'.format(cols[8], row)
+                    ws[cell].value = member.weight
+                    ws[cell].alignment = Alignment(horizontal='center')
+                ws.print_area = 'A1:I{}'.format(row)
+                set_border(ws, 'B1:I{}'.format(row))
+            filename = '{}-{}.xlsx'.format(m1.title, m1.date)
+            wb.save(filename)
+            try:
+                with open(filename, 'rb') as f:
+                    file_data = f.read()
+                # sending response
+                response = HttpResponse(file_data, content_type='application/vnd.ms-excel')
+                response['Content-Disposition'] = 'attachment; filename="{}"'.format(filename)
+            except IOError:
+                # handle file not exist case here
+                response = HttpResponseNotFound('<h1>File not exist</h1>')
+            return response
+
+
 
         if action == 'delete_sportsmen':
             if request.user.is_superuser:
@@ -1050,16 +1161,10 @@ def match(request):
                 if member_id:
                     # Members.objects.filter(pk=member_id).delete()
                     StartLists.objects.filter(category_id=category_id, member_id=member_id).delete()
-            data['start_list'] = get_list(match_id, request)
+                    count = StartLists.objects.filter(category_id=category_id, step=0).count()
+                    MemberCats.objects.filter(pk=category_id).update(member_count=count)
+            data['start_list'] = get_list(match_id, request, csrf.get_token(request))
             return redirect('/dashboard/match/?id={}'.format(match_id))
-
-        if action == 'change_member':  # изменить категорию у участника
-            member_id = request.POST.get("member_id", "0")
-            category_id = request.POST.get("category_id", "0")
-            data['member_item'] = Members.objects.get(pk=member_id)
-            data['member'] = StartLists.objects.get(category_id=category_id, member_id=member_id)
-            data['new_categories'] = MemberCats.objects.filter(match_id=match_id)
-            data['category_id'] = category_id
 
         if action == 'new_category':
             member_id = request.POST.get("member_id", "0")
@@ -1071,43 +1176,24 @@ def match(request):
             return redirect('/dashboard/tables/')
 
         if action == 'start_match':
-            cats = MemberCats.objects.filter(match_id=match_id).order_by('hand', 'weight_category')  # Список категорий
-            count = Match.objects.get(pk=match_id).table_count  # Количество столов в турнире
-            table = 1
-            for cat in cats:  # для каждой категории
-                if not cat.started:  # если жеребьевка еще не проводилась
+            status = Match.objects.get(pk=match_id).status
+            if not status:  # Если турнир еще не начался, распределяем категории по столам.
+                count = Match.objects.get(pk=match_id).table_count  # Количество столов в турнире
+                table = 1
+                cats = MemberCats.objects.filter(match_id=match_id).order_by('hand',
+                                                                             'weight_category')  # Список категорий
+                for cat in cats:  # для каждой категории
                     MemberCats.objects.filter(pk=cat.pk).update(table=table, final=0)  # Определяем стол для категории
                     table = table + 1
                     if table > count:
                         count = 1
-                    list_id = list(StartLists.objects.filter(category_id=cat.pk).values_list("id", flat=True))  # id участников в категории
-                    random.shuffle(list_id)  # перемешиваем для жеребьевки
-                    position = 1
-                    while list_id:  # жеребьевка для категории, кому не хватило пары уходит в тур 2 с одной победой
-                        m_id = list_id.pop(0)
-                        if list_id:
-                            p_id = list_id.pop(0)
-                            p_mem = StartLists.objects.get(pk=p_id).member_id
-                            m_mem = StartLists.objects.get(pk=m_id).member_id
-                            StartLists.objects.filter(pk=m_id).update(round=1, loses=0, win=0, position=position,
-                                                                      pair=p_mem, place=0) #TODO переделать pair
-                            position = position + 1
-                            StartLists.objects.filter(pk=p_id).update(round=1, loses=0, win=0, position=position,
-                                                                      pair=m_mem, place=0)
-                            position = position + 1
-                        else:
-                            StartLists.objects.filter(pk=m_id).update(round=2, loses=0, win=1, position=position,
-                                                                      pair=None, place=0)
+                Match.objects.filter(pk=match_id).update(status=1)
             data['start_list'] = get_tables(user_id, match_id, csrf.get_token(request))  # Вывод турнира
             data['match_id'] = match_id
 
-        if action == 'set_weight':
-            data['weight_list'] = get_weight_list(user_id, match_id, csrf.get_token(request))
-            return render(request, 'pages/weights.html', context=data)
-
         if action == 'table_list':
-            data['match_list'] = get_match_list(match_id, None)
-            return render(request, 'pages/tables.html', context=data)
+            data['start_list'] = get_tables(None, match_id, csrf.get_token(request))  # Вывод турнира
+            data['match_id'] = match_id
 
     if match_id:
         data['match_id'] = match_id
@@ -1116,11 +1202,10 @@ def match(request):
         return render(request, 'pages/dashboard.html', context=data)
 
 
-
 def one_table(request):
     data = {}
     category_id = request.GET.get("id")
-    data['members'] = get_match_list(match_id=None, category_id=category_id)
+    # data['members'] = get_match_list(match_id=None, category_id=category_id)
     return render(request, 'pages/table.html', context=data)
 
 
@@ -1136,11 +1221,13 @@ def select_user(request):
         if not order:  # если мы не ошиблись и не пытаемся добавить спортсмена еще раз в категорию
             query = StartLists(match_id=match_id, category_id=category_id, member_id=member_id, fo=fo)
             query.save()
-            Members.objects.filter(pk=member_id).update(weight=0)  # Обнуляем вес участника
+            count = StartLists.objects.filter(category_id=category_id, step=0).count()
+            MemberCats.objects.filter(pk=category_id).update(member_count=count)
+            # Members.objects.filter(pk=member_id).update(weight=0)  # Обнуляем вес участника
         query = Match.objects.get(pk=match_id)
         data['title'] = query.title
         data['date'] = query.date
-        data['start_list'] = get_list(match_id, request)
+        data['start_list'] = get_list(match_id, request, csrf.get_token(request))
         data['match_id'] = match_id
         data['header'] = get_header(user)
         data['menu'] = get_menu(request)
@@ -1148,6 +1235,7 @@ def select_user(request):
         return render(request, 'pages/match.html', context=data)
     else:
         return redirect('/')
+
 
 def show_members(request):
     member_id = None
@@ -1194,15 +1282,17 @@ def show_members(request):
         s.append('<div class="profile"><div class="member_pic">')
         s.append('<img src="/static/media/{}"  class="img-circle member_img">'.format(member.photo))
         s.append('</div></div>')
-        s.append('<span class="member-item-name">{} {} {}</span>'.format(member.surname, member.name, member. second_name))
+        s.append(
+            '<span class="member-item-name">{} {} {}</span>'.format(member.surname, member.name, member.second_name))
         s.append('<span class="member-item-birthday">дата рождения: {}</span>'.format(member.birthday))
         s.append('<span class="member-item-rank">Спортивное звание: {}</span>'.format(member.rank))
         s.append('<span class="member-item-fo">Субъект РФ: {}</span>'.format(member.fo))
         s.append('<span class="member-item-team">Выступает за команду: {}</span>'.format(member.team))
         s.append('<span class="member-item-tr">Тренируется у: {}</span>'.format(member.trener))
         if request.user.is_superuser:
-            s.append('<form method="post" class="member-item-btn" enctype="multipart/form-data" action="/set_user_photo/">'
-                     '<input type="hidden" name="member_id" value="{}">'.format(member.pk))
+            s.append(
+                '<form method="post" class="member-item-btn" enctype="multipart/form-data" action="/set_user_photo/">'
+                '<input type="hidden" name="member_id" value="{}">'.format(member.pk))
             s.append('<input type="hidden" name="csrfmiddlewaretoken" value="{}">'.format(csrf.get_token(request)))
             s.append('<input type="file" name="photo" accept="image/png, image/jpeg" />')
             s.append('<input type="submit" class="btn" id="go_to_match" value="Загрузить фото">')
@@ -1271,3 +1361,6 @@ def set_user_photo(request):
     return redirect('/members/?id={}'.format(member_id))
 
 
+def download_file(request):
+
+    return None

@@ -1,0 +1,20 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="{% static "css/result.css" %}">
+    <title>Результаты соревнований</title>
+</head>
+<body>
+<div class="wrapper_pages_g">
+    <p class="about-author">
+        <h2 class="about-match">Турнир: {{ title }}</h2>
+        <h3 class="about-match">Дата проведения: {{ date }}</h3>
+    </p>
+    <div class="inline-group">
+        {{ start_list|safe }}
+    </div>
+</div>
+</body>
+</html>

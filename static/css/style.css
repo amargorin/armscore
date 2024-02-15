@@ -87,13 +87,24 @@ form {
 
 .small_button {
   float: right;
-  color: #7f8084;
-  border: 1px solid #22272d;
-  padding: 7px 15px;
+  padding: 5px;
   border-radius: 3px;
   font-size: 0.8em;
   cursor: pointer;
+  color: #8a99af;
+  height: 22px;
+  background: #333941;
+  background-image: -webkit-linear-gradient(top, #414b56, #323841 50%, #2b323a 50%, #252a31);
+  background-image: -moz-linear-gradient(top, #414b56, #323841 50%, #2b323a 50%, #252a31);
+  background-image: -o-linear-gradient(top, #414b56, #323841 50%, #2b323a 50%, #252a31);
+  background-image: linear-gradient(to bottom, #414b56, #323841 50%, #2b323a 50%, #252a31);
+  -webkit-box-shadow: inset 0 1px rgba(255, 255, 255, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.25);
+  border: 0px;
+  width: 80px;
   text-decoration: none;
+  margin-top: 4px;
+  display: inline-block;
 }
 
 .button:hover {
@@ -233,8 +244,14 @@ input[type="number"] {
   color: #e6b333;
 }
 
+.small_number {
+  display: inline-block;
+  float: left;
+  padding-left: 5px;
+  width: 40px;
+}
+
 .weight-input input{
-  background: transparent;
   border: 2px solid #22272d;
   padding: 0px 10px 0px 5px;
   min-width: 40px;
@@ -710,6 +727,14 @@ a:active {
     margin: 16px 0 0;
 }
 
+.annonce {
+  width: 981px;
+}
+
+#vk_groups {
+    margin: 0 auto; /* Отступ слева и справа */
+}
+
 .container {
     width: 1200px;
     margin: 1% auto;
@@ -723,14 +748,14 @@ a:active {
 
 }
 .header-top{
-    height: 100px; /* Высота */
-    width: 890px;
-    /*background: #25b33f; !* Фоновый цвет *!*/
-    margin: 0 0 1px 110px; /* Наружные отступы */
+    height: 110px; /* Высота */
+    width: 1200px;
+    background-image: url("../images/logo2.png");
+    margin: 0 0 1px 0px; /* Наружные отступы */
 }
 
 .header{
-    position: absolute;
+    /*position: absolute;*/
     font-size: 14px;
     font-weight: normal;
     color: #b8c6cc;
@@ -742,8 +767,17 @@ a:active {
     font-size: 24px;
     font-weight: bold;
     color: #b8c6cc;
-    left: 120px;
+    left: 150px;
     top: 30px;
+}
+
+.header-login{
+    position: absolute;
+    font-size: 12px;
+    /*font-weight: bold;*/
+    color: #b8c6cc;
+    left: 160px;
+    top: 18px;
 }
 
 

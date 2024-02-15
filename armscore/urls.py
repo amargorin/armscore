@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from score import views
 from django.contrib.auth import views as authViews
+# from django_pdfkit import PDFView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -32,13 +33,17 @@ urlpatterns = [
     path('accounts/reset/done/', views.password_reset_done, name='password_reset_done'),
     path('accounts/registration/', views.user_registration),
     path('dashboard/match/', views.match),
+    # path(r'^my-pdf/$', PDFView.as_view(template_name='results.html'), name='results'),
     path('dashboard/table/', views.one_table, name='table'),
     path('dashboard/select_user/', views.select_user, name='select_user'),
     path('validate_username', views.validate_username, name='validate_username'),
     path('check_username', views.check_username, name='check_username'),
     path('set_winner', views.set_winner, name='set_winner'),
     path('set_weight', views.set_weight, name='set_weight'),
+    path('set_table', views.set_table, name='set_table'),
+    path('rollback', views.rollback, name='rollback'),
     path('dashboard/matches/', views.show_match_list),
+    path('download/', views.download_file),
     path('info/', views.info),
     path('members/', views.show_members, name='show_members'),
     path('set_user_photo/', views.set_user_photo),

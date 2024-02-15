@@ -12,11 +12,11 @@
 {% endblock head %}
 {% block content %}
     <div class="container">
-        <div class="logo">
-            <div class="logo-pic">
-                <img src="{% static "images/logo.png" %}"  class="img-circle logo-img">
-            </div> {# logo-pic #}
-        </div>
+{#        <div class="logo">#}
+{#            <div class="logo-pic">#}
+{#                <img src="{% static "images/logo.png" %}"  class="img-circle logo-img">#}
+{#            </div> {# logo-pic #}
+{#        </div>#}
         <div class="header-top">
             {{ header|safe }}
         </div><!--header-top-->
@@ -26,7 +26,7 @@
         <!-- page content -->
         {% if score_form %}
         <div class="content">
-            <form method="post">
+            <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
                 <input type="hidden" name="selector" value="set_match" />
                 <ul class="content">
@@ -115,13 +115,17 @@
   <script>
       $(document).ready(function () {
           // отслеживаем событие отправки формы
-          $("button").click(function () {
-              // создаем AJAX-вызов
-              {#var clickId = $(this).attr('id');#}
-              var clickId = "#"+this.id;
+          $("#setwinner_l").on("submit", function (e) {
+              const data = {
+                  winner_id: $("#winner_id").val(),
+                  csrfmiddlewaretoken: $("#csrfmiddlewaretoken").val(),
+                  match_id: $("#match_id").val(),
+                  category_id: $("#category_id").val(),
+              };
               $.ajax({
                   type: "POST",
-                  data: $(clickId).serialize(), // получаяем данные формы
+                  data: data,
+                  //data: $(clickId).serialize(), // получаяем данные формы
                   {#data:{winner_id: this.id},#}
                   url: "{% url 'set_winner' %}",
                   // если успешно, то
@@ -141,13 +145,17 @@
   <script>
       $(document).ready(function () {
           // отслеживаем событие отправки формы
-          $("button").click(function () {
-              // создаем AJAX-вызов
-              var clickId = "#weight_id_"+this.id;
+          $("#setwinner_r").on("submit", function (e) {
+              const data = {
+                  winner_id: $("#winner_id2").val(),
+                  csrfmiddlewaretoken: $("#csrfmiddlewaretoken").val(),
+                  match_id: $("#match_id2").val(),
+                  category_id: $("#category_id2").val(),
+              };
               $.ajax({
                   type: "POST",
-                  data: $(clickId).serialize(), // получаяем данные формы
-                  url: "{% url 'set_weight' %}",
+                  data: data,
+                  url: "{% url 'set_winner' %}",
                   // если успешно, то
                   success: function (response) {
                       location.reload();
@@ -158,6 +166,112 @@
                       console.log(response.responseJSON.errors)
                   }
               });
+              return false;
+          });
+      })
+  </script>
+  <script>
+      $(document).ready(function () {
+          // отслеживаем событие отправки формы
+          $("button").click(function (e) {
+              let name = $(this).attr('name')
+              if (name === "set_weight") {
+                  let weightID = "#weight_" + $(this).attr('id')
+                  let memberID = "#member_id_" + $(this).attr('id')
+                  let matchID = "#match_id_" + $(this).attr('id')
+                  console.log("set_weight cat-", $(this).attr('id'))
+                  const data = {
+                      weight: $(weightID).val(),
+                      csrfmiddlewaretoken: $("#csrfmiddlewaretoken").val(),
+                      match_id: $(matchID).val(),
+                      member_id: $(memberID).val(),
+                  };
+                  $.ajax({
+                      type: "POST",
+                      data: data,
+                      url: "{% url 'set_weight' %}",
+                      success: function (response) {
+                          location.reload();
+                          {#console.log($(this).attr('id'))#}
+                      },
+                      error: function (response) {
+                          // предупредим об ошибке
+                          console.log(response.responseJSON.errors)
+                      }
+                  });
+              }
+              if (name === "set_table") {
+                  let tableID = "#table_number_" + $(this).attr('id')
+                  let categoryID = "#category_id_" + $(this).attr('id')
+                  let matchID = "#match_id_" + $(this).attr('id')
+                  console.log("set_table cat-", $(this).attr('id'))
+                  const data = {
+                      category_id: $(categoryID).val(),
+                      csrfmiddlewaretoken: $("#csrfmiddlewaretoken").val(),
+                      match_id: $(matchID).val(),
+                      table_number: $(tableID).val(),
+                  };
+                  $.ajax({
+                      type: "POST",
+                      data: data,
+                      url: "{% url 'set_table' %}",
+                      success: function (response) {
+                          location.reload();
+                      },
+                      error: function (response) {
+                          // предупредим об ошибке
+                          console.log(response.responseJSON.errors)
+                      }
+                  });
+              }
+              if (name === "set_winner") {
+                  let winnerID = "#winner_id_" + $(this).attr('id')
+                  let categoryID = "#category_id_" + $(this).attr('id')
+                  let matchID = "#match_id_" + $(this).attr('id')
+                  const data = {
+                      winner_id: $(winnerID).val(),
+                      csrfmiddlewaretoken: $("#csrfmiddlewaretoken").val(),
+                      match_id: $(matchID).val(),
+                      category_id: $(categoryID).val(),
+                  };
+                  $.ajax({
+                      type: "POST",
+                      data: data,
+                      url: "{% url 'set_winner' %}",
+                      // если успешно, то
+                      success: function (response) {
+                          location.reload();
+                      },
+                      // если ошибка, то
+                      error: function (response) {
+                          // предупредим об ошибке
+                          console.log(response.responseJSON.errors)
+                      }
+                  });
+              }
+              if (name === "rollback") {
+                  let categoryID = "#category_id_" + $(this).attr('id')
+                  let matchID = "#match_id_" + $(this).attr('id')
+                  const data = {
+                      csrfmiddlewaretoken: $("#csrfmiddlewaretoken").val(),
+                      match_id: $(matchID).val(),
+                      category_id: $(categoryID).val(),
+                  };
+                  $.ajax({
+                      type: "POST",
+                      data: data,
+                      url: "{% url 'rollback' %}",
+                      // если успешно, то
+                      success: function (response) {
+                          location.reload();
+                      },
+                      // если ошибка, то
+                      error: function (response) {
+                          // предупредим об ошибке
+                          console.log(response.responseJSON.errors)
+                      }
+                  });
+              }
               return false;
           });
       })

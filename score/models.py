@@ -154,6 +154,7 @@ class MemberCats(models.Model):
     table = models.IntegerField(blank=True, null=True)  # на каком столе будет проводиться данная категория
     started = models.BooleanField(default=False)  # Признак что соревнование начато и жеребьевка состоялась
     final = models.IntegerField(blank=True, default=0)  # определения финала
+    member_count = models.IntegerField(blank=True, default=0)  # количество участников в группе (для расчета места)
 
 
 class Match(models.Model):  # Общая информация о турнире
@@ -167,8 +168,8 @@ class Match(models.Model):  # Общая информация о турнире
     table_count = models.IntegerField(blank=True, null=True)  # Количество столов для борьбы
     status = models.IntegerField(blank=True, default=0)  # 0=не начинался, 1=проходит, 2=закончился
     logo = models.ImageField(default='', null=True)  # логотип турнира
-    current = models.IntegerField(blank=True, default=0)  # На какой руке проходит матч 2 = на левой 1 =на правой
     hands = models.CharField(max_length=1, choices=Hands.choices, default=Hands.BOTH)  # на какой руке турнир
+    c56 = models.BooleanField(default=False)  # Нужно ли отдельно проводить поединок за 5 место
     contacts = models.CharField(max_length=255, null=True)  # Контактная информация
     poster = models.ImageField(default='default_poster.png', upload_to='')  # Афиша соревнования
     public = models.BooleanField(default=False)  # Признак анонсировать соревнование на главной странице
@@ -201,6 +202,7 @@ class StartLists(models.Model): # Стартовые списки
     step = models.IntegerField(blank=True, null=True, default=0)  # Текущий тур
     act = models.BooleanField(default=True)  # Признак текушей позиции в стеке
     group = models.IntegerField(blank=True, default=1)  # сетка А = 1, Сетка Б = 2
+    pair = models.IntegerField(blank=True, default=0)  # id спортсмена Members
 
 
 
@@ -237,3 +239,4 @@ class MatchHistory(models.Model):
     category = models.IntegerField(default=0)  # категория MembersCats.id
     win_id = models.IntegerField(default=0)  # Имя участника
     los_id = models.IntegerField(default=0)  # Имя участника
+
